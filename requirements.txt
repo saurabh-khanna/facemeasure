@@ -4,3 +4,5 @@ pandas
 Pillow
 streamlit
 opencv-python-headless
+tensorflow
+tf-keras
