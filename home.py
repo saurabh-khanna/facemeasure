@@ -2,6 +2,7 @@ import streamlit as st
 from deepface import DeepFace
 import numpy as np
 from PIL import Image
+import cv2
 import pandas as pd
 
 # Set up the Streamlit page configuration and hide menu, footer, header
@@ -17,18 +18,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Main page
+# main page
 st.title("🧑 FaceMeasure")
 st.write("_Democratizing objective face measurement_")
 st.write("&nbsp;")
 
-# Sidebar
+# sidebar
 st.sidebar.title("🧑 FaceMeasure")
 st.sidebar.write("_Democratizing objective face measurement_")
 st.sidebar.write("&nbsp;")
 st.sidebar.info("🌱 Supported by the Social and Behavioural Data Science Centre, University of Amsterdam")
 st.sidebar.info("🙈 We do not collect any identifiable information. All data is cleared once you refresh or close this web page.")
-st.sidebar.info("🛠️ Our code base is fully open source and can be found [here](https://github.com/saurabh-khanna/facemeasure/).")
+st.sidebar.info("🛠️ Our code base is fully open source and can be found [here]().")
 
 st.write("FaceMeasure democratizes facial analysis by allowing researchers to obtain precise facial metrics instantly without costly software or coding. Get started by uploading a picture, or take one using your webcam.")
 
@@ -39,7 +40,6 @@ def load_image(image_file):
     img = Image.open(image_file)
     return np.array(img)
 
-# Image handling based on user option
 if option == "Upload a picture":
     image = st.file_uploader(label="invisible", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
     if image is not None:
@@ -54,12 +54,10 @@ elif option == "Take a picture":
 st.write("&nbsp;")
 if image is not None:
     with st.status("Processing your picture..."):
-        # Convert RGBA to RGB if needed
+        # Convert the image to RGB if it's not
         if img.shape[-1] == 4:
-            img = Image.fromarray(img).convert("RGB")
-            img = np.array(img)
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
 
-        # Perform analysis
         objs = DeepFace.analyze(
             img_path=img,  # Pass the numpy array here
             actions=['age', 'gender', 'race', 'emotion'],
@@ -81,17 +79,21 @@ if image is not None:
 
     # Access region details including eye coordinates
     region = objs[0]['region']
-    region_df = pd.DataFrame([{
-        'x': region.get('x'),
-        'y': region.get('y'),
-        'w': region.get('w'),
-        'h': region.get('h'),
-        'left_eye_x': region.get('left_eye', [None, None])[0],
-        'left_eye_y': region.get('left_eye', [None, None])[1],
-        'right_eye_x': region.get('right_eye', [None, None])[0],
-        'right_eye_y': region.get('right_eye', [None, None])[1]
-    }])
 
+    # Handle NoneType for eye coordinates safely
+    if region['left_eye'] is not None:
+        region['left_eye_x'], region['left_eye_y'] = region['left_eye']
+    else:
+        region['left_eye_x'], region['left_eye_y'] = None, None
+    
+    if region['right_eye'] is not None:
+        region['right_eye_x'], region['right_eye_y'] = region['right_eye']
+    else:
+        region['right_eye_x'], region['right_eye_y'] = None, None
+
+    region_df = pd.DataFrame([region], columns=['x', 'y', 'w', 'h', 'left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y'])
+
+    # st.write("&nbsp;")
     # Display the attributes
     st.subheader("Key Facial Attributes")
     st.table(pd.DataFrame(attributes.items(), columns=['Attribute', 'Value']).reset_index(drop=True))
