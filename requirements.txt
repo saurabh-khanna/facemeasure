@@ -1,7 +1,5 @@
 deepface
 numpy
-opencv_python
 pandas
 Pillow
 streamlit
-libgl1-mesa-glx
