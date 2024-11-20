@@ -93,7 +93,6 @@ if image is not None:
 
     region_df = pd.DataFrame([region], columns=['x', 'y', 'w', 'h', 'left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y'])
 
-    # st.write("&nbsp;")
     # Display the attributes
     st.subheader("Key Facial Attributes")
     st.table(pd.DataFrame(attributes.items(), columns=['Attribute', 'Value']).reset_index(drop=True))
