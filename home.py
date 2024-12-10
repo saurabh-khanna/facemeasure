@@ -1,114 +1,92 @@
 import streamlit as st
 from deepface import DeepFace
-import numpy as np
 from PIL import Image
-import cv2
+import numpy as np
 import pandas as pd
+from streamlit_lottie import st_lottie
 
-# Set up the Streamlit page configuration and hide menu, footer, header
+# Set up the Streamlit page configuration
 st.set_page_config(page_icon="🧑", page_title="FaceMeasure", layout="centered")
+
+# Hide Streamlit default menu, footer, and header
 st.markdown(
     """
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu, footer, header {visibility: hidden;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# main page
+# Main page content
 st.title("🧑 FaceMeasure")
 st.write("_Democratizing objective face measurement_")
 st.write("&nbsp;")
 
-# sidebar
+# Sidebar information
 st.sidebar.title("🧑 FaceMeasure")
 st.sidebar.write("_Democratizing objective face measurement_")
 st.sidebar.write("&nbsp;")
 st.sidebar.info("🌱 Supported by the Social and Behavioural Data Science Centre, University of Amsterdam")
 st.sidebar.info("🙈 We do not collect any identifiable information. All data is cleared once you refresh or close this web page.")
-st.sidebar.info("🛠️ Our code base is fully open source and can be found [here]().")
+st.sidebar.info("🛠️ Our code base is fully open source and can be found [here]()")
 
-st.write("FaceMeasure democratizes facial analysis by allowing researchers to obtain precise facial metrics instantly without costly software or coding. Get started by uploading a picture, or take one using your webcam.")
-
-# Create a sidebar for user options
-option = st.radio(label="invisible", options=("Upload a picture", "Take a picture"), label_visibility="collapsed")
 
 def load_image(image_file):
-    img = Image.open(image_file)
-    return np.array(img)
+    """Load an image from a file."""
+    return Image.open(image_file)
 
-if option == "Upload a picture":
-    image = st.file_uploader(label="invisible", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
-    if image is not None:
-        img = load_image(image)
-        st.image(img, caption='Uploaded picture')
 
-elif option == "Take a picture":
-    image = st.camera_input(label="invisible", label_visibility="collapsed")
-    if image is not None:
-        img = load_image(image)
-
-st.write("&nbsp;")
-if image is not None:
-    with st.status("Processing your picture..."):
-        # Convert the image to RGB if it's not
-        if img.shape[-1] == 4:
-            img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
-
-        objs = DeepFace.analyze(
-            img_path=img,  # Pass the numpy array here
-            actions=['age', 'gender', 'race', 'emotion'],
-        )
-
-    # Extract the attributes from the 'objs' list
-    attributes = {
-        'Age': objs[0]['age'],
-        'Dominant Gender': objs[0]['dominant_gender'],
-        'Dominant Race': objs[0]['dominant_race'],
-        'Dominant Emotion': objs[0]['dominant_emotion'],
-        'Face Confidence': f"{objs[0]['face_confidence'] * 100:.1f}%",
+def analyze_image(image):
+    """Analyze an image and return its attributes."""
+    img_rgb = np.array(image.convert("RGB"))
+    analysis = DeepFace.analyze(
+        img_path=img_rgb,
+        actions=["age", "gender", "race", "emotion"]
+    )
+    result = {
+        "Age": analysis[0]["age"],
+        "Dominant Gender": analysis[0]["dominant_gender"],
+        "Dominant Race": analysis[0]["dominant_race"],
+        "Dominant Emotion": analysis[0]["dominant_emotion"],
+        "Face Confidence (%)": f"{analysis[0]['face_confidence'] * 100:.1f}"
     }
+    return result
 
-    # Round percentages in the detailed attributes
-    gender_df = pd.DataFrame(objs[0]['gender'], index=[0]).applymap(lambda x: f"{x:.1f}%")
-    race_df = pd.DataFrame(objs[0]['race'], index=[0]).applymap(lambda x: f"{x:.1f}%")
-    emotion_df = pd.DataFrame(objs[0]['emotion'], index=[0]).applymap(lambda x: f"{x:.1f}%")
 
-    # Access region details including eye coordinates
-    region = objs[0]['region']
+col1, col2 = st.columns([2.4, 1])
 
-    # Handle NoneType for eye coordinates safely
-    if region['left_eye'] is not None:
-        region['left_eye_x'], region['left_eye_y'] = region['left_eye']
-    else:
-        region['left_eye_x'], region['left_eye_y'] = None, None
+with col2:
+    st_lottie("https://lottie.host/a0357f2b-b951-4f69-b9e8-35b36e79b386/9B0IQaQ77q.json")
+
+# Allow multiple image uploads
+
+with col1:
+    st.write("FaceMeasure democratizes facial analysis by allowing researchers to obtain precise facial metrics instantly without costly software or coding. Upload multiple pictures to get started.")
     
-    if region['right_eye'] is not None:
-        region['right_eye_x'], region['right_eye_y'] = region['right_eye']
-    else:
-        region['right_eye_x'], region['right_eye_y'] = None, None
+    uploaded_images = st.file_uploader("Upload image(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-    region_df = pd.DataFrame([region], columns=['x', 'y', 'w', 'h', 'left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y'])
+    if uploaded_images:
+        results = []
 
-    # Display the attributes
-    st.subheader("Key Facial Attributes")
-    st.table(pd.DataFrame(attributes.items(), columns=['Attribute', 'Value']).reset_index(drop=True))
+        # Process each uploaded image
+        for image_file in uploaded_images:
+            image = load_image(image_file)
+            result = analyze_image(image)
+            results.append(result)
 
-    # Display region details including eyes
-    st.subheader("Face Region and Eye Coordinates")
-    st.table(region_df.reset_index(drop=True))
+        # Convert results to a DataFrame
+        df = pd.DataFrame(results)
 
-    # Display gender probabilities
-    st.subheader("Gender Confidence Levels")
-    st.table(gender_df.reset_index(drop=True))
+        # Display the DataFrame
+        st.subheader("Analysis Results")
+        st.dataframe(df)
 
-    # Display race probabilities
-    st.subheader("Race Confidence Levels")
-    st.table(race_df.reset_index(drop=True))
-
-    # Display emotion probabilities
-    st.subheader("Emotion Confidence Levels")
-    st.table(emotion_df.reset_index(drop=True))
+        # Provide a button to download the DataFrame as a CSV
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="Download results as CSV",
+            data=csv,
+            file_name="facial_analysis_results.csv",
+            mime="text/csv"
+        )
