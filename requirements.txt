@@ -1,4 +1,4 @@
-dlib==19.24.6
+dlib
 numpy==2.2.2
 pandas==2.2.3
 Pillow==11.1.0
