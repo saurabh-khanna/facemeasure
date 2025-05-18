@@ -1,12 +1,10 @@
 # 👤 FaceMeasure
 
-**FaceMeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images—no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored!
-
-[![Streamlit App](https://img.shields.io/badge/Streamlit-Online-brightgreen)](https://share.streamlit.io/saurabh-khanna/facemeasure)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-Online-brightgreen)](https://facemeasure.applikuapp.com)
 [![License](https://img.shields.io/github/license/saurabh-khanna/facemeasure)](LICENSE)
 [![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/saurabh-khanna/facemeasure)
 
----
+**FaceMeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images—no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored!
 
 ## 🚀 Features
 
@@ -17,14 +15,11 @@
 * **Privacy-Friendly**: No images or data are ever stored—refresh the app to clear everything.
 * **Free & Open Source**: Supported by the Social and Behavioural Data Science Centre, University of Amsterdam.
 
----
 
 ## 🖥️ Demo
 
 Try it live:
 [👉 Launch FaceMeasure Streamlit app](https://share.streamlit.io/saurabh-khanna/facemeasure)
-
----
 
 ## 🧑‍🔬 How to Use
 
@@ -33,7 +28,6 @@ Try it live:
 3. **Download results** as a CSV or JSON file.
 4. **See a random visualization** of detected facial landmarks over one of your uploaded images.
 
----
 
 ## 📝 Output
 
@@ -41,7 +35,6 @@ Try it live:
 * **JSON**: Structured array of objects with the same landmark keys.
 * **Visualization**: Original and landmark-overlaid images shown side by side.
 
----
 
 ## 📚 Dependencies
 
@@ -51,7 +44,6 @@ Try it live:
 * [pandas](https://pandas.pydata.org/)
 * [Pillow](https://python-pillow.org/)
 
----
 
 ## 🙏 Acknowledgments
 
@@ -59,26 +51,22 @@ Try it live:
 * Facial landmark model: [dlib shape predictor](https://dlib.net/).
 * Inspired by open, privacy-first research.
 
----
 
 ## 🛡️ License
 
 This project is [AGPLv3 licensed](LICENSE).
 
----
 
 ## 💡 Contributing
 
 Contributions are welcome!
 Feel free to open issues, create pull requests, or suggest features.
 
----
 
 ## 📣 Contact
 
 * [GitHub Issues](https://github.com/saurabh-khanna/facemeasure/issues)
 * [Email author](mailto:saurabh.khanna@uva.nl)
 
----
 
 > *No identifiable data is stored. Everything is cleared once you refresh the application or download results.*
