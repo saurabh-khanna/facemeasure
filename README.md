@@ -1,10 +1,10 @@
-# 👤 FaceMeasure
+# 👤 facemeasure
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-Online-brightgreen)](https://facemeasure.applikuapp.com)
 [![License](https://img.shields.io/github/license/saurabh-khanna/facemeasure)](LICENSE)
 [![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/saurabh-khanna/facemeasure)
 
-**FaceMeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images—no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored!
+**facemeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images—no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored!
 
 ## 🚀 Features
 
@@ -19,7 +19,7 @@
 ## 🖥️ Demo
 
 Try it live:
-[👉 FaceMeasure Web Application](https://share.streamlit.io/saurabh-khanna/facemeasure)
+[👉 facemeasure](https://facemeasure.applikuapp.com)
 
 ## 🧑‍🔬 How to Use
 
@@ -48,14 +48,10 @@ Try it live:
 ## 🙏 Acknowledgments
 
 * Supported by the Social and Behavioural Data Science Centre, University of Amsterdam.
-* Facial landmark model: [dlib shape predictor](https://dlib.net/).
-* Inspired by open, privacy-first research.
-
 
 ## 🛡️ License
 
 This project is [AGPLv3 licensed](LICENSE).
-
 
 ## 💡 Contributing
 
@@ -67,6 +63,5 @@ Feel free to open issues, create pull requests, or suggest features.
 
 * [GitHub Issues](https://github.com/saurabh-khanna/facemeasure/issues)
 * [Email author](mailto:saurabh.khanna@uva.nl)
-
 
 > *No identifiable data is stored. Everything is cleared once you refresh the application or download results.*
