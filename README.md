@@ -58,10 +58,4 @@ This project is [AGPLv3 licensed](LICENSE).
 Contributions are welcome!
 Feel free to open issues, create pull requests, or suggest features.
 
-
-## 📣 Contact
-
-* [GitHub Issues](https://github.com/saurabh-khanna/facemeasure/issues)
-* [Email author](mailto:saurabh.khanna@uva.nl)
-
 > *No identifiable data is stored. Everything is cleared once you refresh the application or download results.*
