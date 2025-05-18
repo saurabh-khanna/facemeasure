@@ -19,7 +19,7 @@
 ## 🖥️ Demo
 
 Try it live:
-[👉 Launch FaceMeasure Streamlit app](https://share.streamlit.io/saurabh-khanna/facemeasure)
+[👉 FaceMeasure Web Application](https://share.streamlit.io/saurabh-khanna/facemeasure)
 
 ## 🧑‍🔬 How to Use
 
