@@ -19,7 +19,7 @@
 ## 🖥️ Demo
 
 Try it live:
-[👉 facemeasure](https://facemeasure.applikuapp.com)
+[👉 facemeasure](https://facemeasure.com)
 
 ## 🧑‍🔬 How to Use
 
