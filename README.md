@@ -1,6 +1,6 @@
 # 👤 facemeasure
 
-[![Streamlit App](https://img.shields.io/badge/Streamlit-Online-brightgreen)](https://facemeasure.applikuapp.com)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-Online-brightgreen)](https://facemeasure.com)
 [![License](https://img.shields.io/github/license/saurabh-khanna/facemeasure)](LICENSE)
 [![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/saurabh-khanna/facemeasure)
 
