@@ -9,20 +9,15 @@ import random
 import json
 
 # Set up the Streamlit page configuration
-st.set_page_config(page_icon="👤", page_title="FaceMeasure", layout="centered")
-
-# Hide Streamlit default menu, footer, and header
-st.markdown(
-    """
-    <style>
-    #MainMenu, footer, header {visibility: hidden;}
-    [data-testid="stElementToolbar"] {
-        display: none;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.set_page_config(
+    page_icon="👤", 
+    page_title="facemeasure", 
+    layout="centered",
+    menu_items={
+        "Get Help": None,
+        "Report a bug": None,
+        "About": None,
+    })
 
 # Main page content
 st.title(":bust_in_silhouette: facemeasure")
@@ -135,7 +130,7 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
 # Allow multiple image uploads using a Streamlit form
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
-    submitted = st.form_submit_button("Analyze image(s)", use_container_width=True, type="primary")
+    submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")
 
 if submitted:
     if not uploaded_images:
@@ -176,7 +171,7 @@ if submitted:
                 data=csv, 
                 file_name=csv_filename, 
                 mime="text/csv", 
-                use_container_width=True, 
+                width='stretch', 
                 type="primary")  
 
             # Provide download button for JSON
@@ -187,7 +182,7 @@ if submitted:
                 data=json_data,
                 file_name=json_filename,
                 mime="application/json",    
-                use_container_width=True,
+                width='stretch',
                 type="primary"
             )
 
@@ -213,9 +208,9 @@ if submitted:
                             # Show side by side using Streamlit columns
                             col_c, col_d = st.columns(2)
                             with col_c:
-                                st.image(pil_img, caption="Original", use_container_width=True)
+                                st.image(pil_img, caption="Original", width='stretch')
                             with col_d:
-                                st.image(img_with_landmarks, caption="With facial landmarks", use_container_width=True)
+                                st.image(img_with_landmarks, caption="With facial landmarks", width='stretch')
                         break
             else:
                 st.info("No valid faces detected in uploaded images, so cannot show landmarks.")
