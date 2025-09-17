@@ -27,6 +27,18 @@ col1, col2, col3 = st.columns([1, 1.618, 1])
 with col2:
     st_lottie("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
 
+# Inject custom CSS to set the width of the sidebar
+st.markdown(
+    """
+    <style>
+        section[data-testid="stSidebar"] {
+            width: 350px !important; # Set the width to your desired value
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown("""
     <style>
     @keyframes blink {
