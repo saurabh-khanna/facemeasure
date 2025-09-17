@@ -65,6 +65,55 @@ def load_models():
     predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")  # Ensure this file exists
     return detector, predictor
 
+def calculate_eyebrow_v_shape(landmarks_dict):
+    """Calculate eyebrow V-shape metric based on eyebrow slopes."""
+    # Extract eyebrow landmarks (18-21 for left, 22-25 for right)
+    left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(18, 22)]
+    right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 26)]
+    
+    # Standardize coordinates (simplified version of R's scale function)
+    all_x = [landmarks_dict[f"LM_{i}_X"] for i in range(68)]
+    all_y = [landmarks_dict[f"LM_{i}_Y"] for i in range(68)]
+    x_mean, x_std = np.mean(all_x), np.std(all_x)
+    y_mean, y_std = np.mean(all_y), np.std(all_y)
+    
+    def standardize_points(points):
+        return [((x - x_mean) / x_std, (y - y_mean) / y_std) for x, y in points]
+    
+    left_std = standardize_points(left_eyebrow)
+    right_std = standardize_points(right_eyebrow)
+    
+    # Calculate slopes using linear regression
+    def calculate_slope(points):
+        x_coords = [p[0] for p in points]
+        y_coords = [p[1] for p in points]
+        n = len(points)
+        slope = (n * sum(x*y for x, y in points) - sum(x_coords) * sum(y_coords)) / \
+                (n * sum(x*x for x in x_coords) - sum(x_coords)**2)
+        return slope
+    
+    left_slope = calculate_slope(left_std)
+    right_slope = calculate_slope(right_std)
+    
+    # Calculate V-shape (higher numbers = more V-shaped)
+    right_slope_rc = -1 * right_slope
+    eyebrow_v = (left_slope + right_slope_rc) / 2
+    
+    return eyebrow_v
+
+def calculate_fwhr(landmarks_dict):
+    """Calculate facial width-to-height ratio (fWHR)."""
+    # Width: distance between landmarks 0 (left jaw) and 16 (right jaw)
+    width = abs(landmarks_dict["LM_16_X"] - landmarks_dict["LM_0_X"])
+    
+    # Height: distance between landmark 27 (mid-brow) and 51 (upper lip)
+    height = abs(landmarks_dict["LM_51_Y"] - landmarks_dict["LM_27_Y"])
+    
+    # Calculate fWHR
+    fwhr = width / height if height != 0 else 0
+    
+    return fwhr
+
 def extract_landmarks(image):
     """Extract 68 facial landmarks from the image using Dlib."""
     detector, predictor = load_models()
@@ -81,6 +130,16 @@ def extract_landmarks(image):
     for i in range(68):
         landmark_dict[f"LM_{i}_X"] = landmarks.part(i).x
         landmark_dict[f"LM_{i}_Y"] = landmarks.part(i).y
+    
+    # Calculate facial metrics
+    try:
+        landmark_dict["Eyebrow_V"] = round(calculate_eyebrow_v_shape(landmark_dict), 4)
+        landmark_dict["fWHR"] = round(calculate_fwhr(landmark_dict), 4)
+    except Exception as e:
+        # If calculation fails, set to None
+        landmark_dict["Eyebrow_V"] = None
+        landmark_dict["fWHR"] = None
+    
     return landmark_dict
 
 
@@ -149,7 +208,14 @@ if submitted:
         
         progress_bar.empty()
         df = pd.DataFrame(results)
-        df = df[["Image_Name"] + [col for col in df.columns if col != "Image_Name"]]  # Ensure image name is the first column
+        
+        # Reorder columns: Image_Name first, then landmarks, then facial metrics last
+        landmark_cols = [col for col in df.columns if col.startswith("LM_")]
+        metric_cols = ["Eyebrow_V", "fWHR"]
+        other_cols = [col for col in df.columns if col not in landmark_cols + metric_cols + ["Image_Name"]]
+        
+        column_order = ["Image_Name"] + landmark_cols + metric_cols + other_cols
+        df = df[[col for col in column_order if col in df.columns]]
 
         # Display results
         st.write("&nbsp;")
