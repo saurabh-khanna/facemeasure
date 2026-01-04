@@ -80,8 +80,8 @@ def load_models():
 def calculate_eyebrow_v_shape(landmarks_dict):
     """Calculate eyebrow V-shape metric based on eyebrow slopes."""
     # Extract eyebrow landmarks (17-21 for left, 22-26 for right)
-    left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(17, 22)]
-    right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 27)]
+    left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(18, 22)]
+    right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 26)]
     
     # Standardize coordinates (simplified version of R's scale function)
     all_x = [landmarks_dict[f"LM_{i}_X"] for i in range(68)]
@@ -201,7 +201,7 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
 # Allow multiple image uploads using a Streamlit form
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
-    submitted = st.form_submit_button("Analyze image(s)", use_container_width=True, type="primary")
+    submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")
 
 if submitted:
     if not uploaded_images:
@@ -249,7 +249,7 @@ if submitted:
                 data=csv, 
                 file_name=csv_filename, 
                 mime="text/csv", 
-                use_container_width=True, 
+                width='stretch', 
                 type="primary")  
 
             # Provide download button for JSON
@@ -260,7 +260,7 @@ if submitted:
                 data=json_data,
                 file_name=json_filename,
                 mime="application/json",    
-                use_container_width=True,
+                width='stretch',
                 type="primary"
             )
 
@@ -286,9 +286,9 @@ if submitted:
                             # Show side by side using Streamlit columns
                             col_c, col_d = st.columns(2)
                             with col_c:
-                                st.image(pil_img, caption="Original", use_container_width=True)
+                                st.image(pil_img, caption="Original", width='stretch')
                             with col_d:
-                                st.image(img_with_landmarks, caption="With facial landmarks", use_container_width=True)
+                                st.image(img_with_landmarks, caption="With facial landmarks", width='stretch')
                         break
             else:
                 st.info("No valid faces detected in uploaded images, so cannot show landmarks.")
