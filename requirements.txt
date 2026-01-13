@@ -1,6 +1,6 @@
-dlib
-numpy
-pandas
-Pillow
-streamlit==1.52
-streamlit_lottie
+dlib==20.0.0
+numpy==2.4.1
+pandas==2.3.3
+Pillow==12.1.0
+streamlit==1.52.2
+streamlit-lottie==0.0.5
