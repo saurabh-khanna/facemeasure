@@ -79,7 +79,7 @@ def load_models():
 
 def calculate_eyebrow_v_shape(landmarks_dict):
     """Calculate eyebrow V-shape metric based on eyebrow slopes."""
-    # Extract eyebrow landmarks (17-21 for left, 22-26 for right)
+    # Extract eyebrow landmarks (18,19,20,21 for left + 22,23,24,25 for right)
     left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(18, 22)]
     right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 26)]
     
