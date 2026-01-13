@@ -2,5 +2,5 @@ dlib
 numpy
 pandas
 Pillow
-streamlit
+streamlit==1.52
 streamlit_lottie
