@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/github/license/saurabh-khanna/facemeasure)](LICENSE)
 [![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/saurabh-khanna/facemeasure)
 
-**facemeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images—no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored.
+**facemeasure** democratizes facial landmark analysis by allowing anyone to extract precise facial metrics from images - no expensive software or coding skills needed. Upload facial images, visualize facial landmarks, and download results as CSV or JSON. Everything runs in your browser, and no personal data is stored.
 
 ## 🚀 Features
 
