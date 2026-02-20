@@ -1,12 +1,13 @@
 import streamlit as st
-import dlib
 import numpy as np
 import pandas as pd
-from PIL import Image, ImageOps, ImageDraw # Added ImageDraw
+from PIL import Image, ImageOps, ImageDraw
 from streamlit_lottie import st_lottie
 from datetime import datetime
 import random
 import json
+import tempfile
+import os
 
 # Set up the Streamlit page configuration
 st.set_page_config(
@@ -70,89 +71,88 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Load Dlib models
+# Load py-feat Detector (cached for speed across reruns)
 @st.cache_resource
-def load_models():
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")  # Ensure this file exists
-    return detector, predictor
+def load_detector():
+    from feat import Detector
+    return Detector(
+        face_model='retinaface',
+        landmark_model='mobilefacenet',
+        au_model='xgb',
+        emotion_model='svm',
+        facepose_model='img2pose',
+        device='cpu',
+    )
+
+# AU column names returned by py-feat
+AU_COLUMNS = [
+    'AU01', 'AU02', 'AU04', 'AU05', 'AU06', 'AU07', 'AU09', 'AU10',
+    'AU11', 'AU12', 'AU14', 'AU15', 'AU17', 'AU20', 'AU23', 'AU24',
+    'AU25', 'AU26', 'AU28', 'AU43',
+]
 
 def calculate_eyebrow_v_shape(landmarks_dict):
     """Calculate eyebrow V-shape metric based on eyebrow slopes."""
-    # Extract eyebrow landmarks (18,19,20,21 for left + 22,23,24,25 for right)
     left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(18, 22)]
     right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 26)]
-    
-    # Standardize coordinates (simplified version of R's scale function)
+
     all_x = [landmarks_dict[f"LM_{i}_X"] for i in range(68)]
     all_y = [landmarks_dict[f"LM_{i}_Y"] for i in range(68)]
     x_mean, x_std = np.mean(all_x), np.std(all_x)
     y_mean, y_std = np.mean(all_y), np.std(all_y)
-    
+
     def standardize_points(points):
         return [((x - x_mean) / x_std, (y - y_mean) / y_std) for x, y in points]
-    
+
     left_std = standardize_points(left_eyebrow)
     right_std = standardize_points(right_eyebrow)
-    
-    # Calculate slopes using linear regression
+
     def calculate_slope(points):
         x_coords = [p[0] for p in points]
         y_coords = [p[1] for p in points]
         n = len(points)
-        slope = (n * sum(x*y for x, y in points) - sum(x_coords) * sum(y_coords)) / \
-                (n * sum(x*x for x in x_coords) - sum(x_coords)**2)
+        slope = (n * sum(x * y for x, y in points) - sum(x_coords) * sum(y_coords)) / \
+                (n * sum(x * x for x in x_coords) - sum(x_coords) ** 2)
         return slope
-    
+
     left_slope = calculate_slope(left_std)
     right_slope = calculate_slope(right_std)
-    
-    # Calculate V-shape (higher numbers = more V-shaped)
+
     right_slope_rc = -1 * right_slope
     eyebrow_v = (left_slope + right_slope_rc) / 2
-    
     return eyebrow_v
+
 
 def calculate_fwhr(landmarks_dict):
     """Calculate facial width-to-height ratio (fWHR)."""
-    # Width: distance between landmarks 0 (left jaw) and 16 (right jaw)
     width = abs(landmarks_dict["LM_16_X"] - landmarks_dict["LM_0_X"])
-    
-    # Height: distance between landmark 27 (mid-brow) and 51 (upper lip)
     height = abs(landmarks_dict["LM_51_Y"] - landmarks_dict["LM_27_Y"])
-    
-    # Calculate fWHR
-    fwhr = width / height if height != 0 else 0
-    
-    return fwhr
+    return width / height if height != 0 else 0
 
-def extract_landmarks(image):
-    """Extract 68 facial landmarks from the image using Dlib."""
-    detector, predictor = load_models()
-    
-    img_gray = ImageOps.grayscale(image)  # Convert to grayscale
-    img_array = np.array(img_gray)  # Convert PIL image to NumPy array
-    faces = detector(img_array)
 
-    if not faces:
-        return {"Error": "No face detected"}
+def fex_row_to_result(row):
+    """Convert a single py-feat Fex row into a result dict with landmarks, AUs, and metrics."""
+    result = {}
 
-    landmarks = predictor(img_array, faces[0])
-    landmark_dict = {}
+    # Extract 68 landmarks (py-feat uses x_0..x_67, y_0..y_67)
     for i in range(68):
-        landmark_dict[f"LM_{i}_X"] = landmarks.part(i).x
-        landmark_dict[f"LM_{i}_Y"] = landmarks.part(i).y
-    
-    # Calculate facial metrics
+        result[f"LM_{i}_X"] = round(float(row[f"x_{i}"]), 4)
+        result[f"LM_{i}_Y"] = round(float(row[f"y_{i}"]), 4)
+
+    # Extract Action Units
+    for col in AU_COLUMNS:
+        if col in row.index:
+            result[col] = round(float(row[col]), 4)
+
+    # Compute derived metrics from landmarks
     try:
-        landmark_dict["Eyebrow_V"] = round(calculate_eyebrow_v_shape(landmark_dict), 4)
-        landmark_dict["fWHR"] = round(calculate_fwhr(landmark_dict), 4)
-    except Exception as e:
-        # If calculation fails, set to None
-        landmark_dict["Eyebrow_V"] = None
-        landmark_dict["fWHR"] = None
-    
-    return landmark_dict
+        result["Eyebrow_V"] = round(calculate_eyebrow_v_shape(result), 4)
+        result["fWHR"] = round(calculate_fwhr(result), 4)
+    except Exception:
+        result["Eyebrow_V"] = None
+        result["fWHR"] = None
+
+    return result
 
 
 def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.Image:
@@ -210,23 +210,56 @@ if submitted:
         results = []
         progress_bar = st.progress(0, "Analyzing...")
         total_images = len(uploaded_images)
-        
-        for idx, img in enumerate(uploaded_images):
-            with Image.open(img) as image:
-                data = extract_landmarks(image)
-                data["Image_Name"] = img.name  # Add image name
-                results.append(data)
-            progress_bar.progress((idx + 1) / total_images)
-        
+
+        try:
+            detector = load_detector()
+
+            # Save uploaded images to temp files (py-feat requires file paths)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_paths = []
+                name_map = {}  # temp_path -> original filename
+                for idx, img_file in enumerate(uploaded_images):
+                    img_file.seek(0)
+                    temp_path = os.path.join(tmpdir, f"{idx}_{img_file.name}")
+                    with open(temp_path, "wb") as f:
+                        f.write(img_file.read())
+                    temp_paths.append(temp_path)
+                    name_map[temp_path] = img_file.name
+
+                # Single-pass detection: faces, landmarks, AUs — all at once
+                fex_results = detector.detect_image(
+                    temp_paths,
+                    batch_size=1,
+                    num_workers=0,
+                )
+
+                # Take first detected face per image; convert to result dicts
+                fex_by_input = fex_results.groupby('input').first().reset_index()
+
+                for idx, temp_path in enumerate(temp_paths):
+                    matching = fex_by_input[fex_by_input['input'] == temp_path]
+                    if len(matching) > 0:
+                        data = fex_row_to_result(matching.iloc[0])
+                    else:
+                        data = {"Error": "No face detected"}
+                    data["Image_Name"] = name_map[temp_path]
+                    results.append(data)
+                    progress_bar.progress((idx + 1) / total_images)
+
+        except Exception as e:
+            st.error(f"Analysis failed: {e}")
+            results = [{"Error": str(e), "Image_Name": img.name} for img in uploaded_images]
+
         progress_bar.empty()
         df = pd.DataFrame(results)
-        
-        # Reorder columns: Image_Name first, then landmarks, then facial metrics last
+
+        # Reorder columns: Image_Name first, then landmarks, then AUs, then facial metrics last
         landmark_cols = [col for col in df.columns if col.startswith("LM_")]
+        au_cols = [col for col in AU_COLUMNS if col in df.columns]
         metric_cols = ["Eyebrow_V", "fWHR"]
-        other_cols = [col for col in df.columns if col not in landmark_cols + metric_cols + ["Image_Name"]]
-        
-        column_order = ["Image_Name"] + landmark_cols + metric_cols + other_cols
+        other_cols = [col for col in df.columns if col not in landmark_cols + au_cols + metric_cols + ["Image_Name"]]
+
+        column_order = ["Image_Name"] + landmark_cols + au_cols + metric_cols + other_cols
         df = df[[col for col in column_order if col in df.columns]]
 
         # Display results
@@ -286,9 +319,9 @@ if submitted:
                             # Show side by side using Streamlit columns
                             col_c, col_d = st.columns(2)
                             with col_c:
-                                st.image(pil_img, caption="Original", width='stretch')
+                                st.image(pil_img, caption="Original", use_container_width=True)
                             with col_d:
-                                st.image(img_with_landmarks, caption="With facial landmarks", width='stretch')
+                                st.image(img_with_landmarks, caption="With facial landmarks", use_container_width=True)
                         break
             else:
                 st.info("No valid faces detected in uploaded images, so cannot show landmarks.")
