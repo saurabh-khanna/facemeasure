@@ -8,6 +8,7 @@ import random
 import json
 import tempfile
 import os
+import torch
 
 # Set up the Streamlit page configuration
 st.set_page_config(
@@ -229,7 +230,8 @@ if submitted:
                 # Detect faces, landmarks, AUs one image at a time
                 for idx, temp_path in enumerate(temp_paths):
                     try:
-                        fex = detector.detect_image(temp_path)
+                        with torch.no_grad():
+                            fex = detector.detect_image(temp_path)
                         if len(fex) > 0:
                             data = fex_row_to_result(fex.iloc[0])
                         else:
