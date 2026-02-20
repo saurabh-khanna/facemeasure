@@ -1,0 +1,8 @@
+.venv/
+.git/
+__pycache__/
+*.pyc
+data/
+*.ipynb
+ipynb_checkpoints/
+_benchmark.py

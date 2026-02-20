@@ -8,16 +8,20 @@ import random
 import json
 import tempfile
 import os
+import sys
 import shutil
 
 # --- Redirect py-feat model downloads to a writable cache directory ---
-# On deployed environments (e.g., AWS), site-packages is read-only.
-# This must run BEFORE any py-feat imports that trigger model downloads.
+# On deployed environments (e.g., AWS/Docker), site-packages is read-only.
+# py-feat hard-codes model downloads into site-packages/feat/resources/.
+# Multiple submodules import get_resource_path via `from ... import`, creating
+# local bindings. We must patch EVERY module that holds a reference.
 import feat
 import feat.utils.io as _feat_io
 
 _ORIGINAL_RESOURCE_PATH = os.path.join(feat.__path__[0], "resources")
 _WRITABLE_RESOURCE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "feat", "resources")
+_orig_get_resource_path = _feat_io.get_resource_path
 
 def _writable_get_resource_path():
     """Return a writable resource directory, seeded with shipped files."""
@@ -33,8 +37,37 @@ def _writable_get_resource_path():
                         shutil.copy2(src, dst)
     return _WRITABLE_RESOURCE_PATH
 
-# Monkey-patch so all py-feat code uses the writable path
-_feat_io.get_resource_path = _writable_get_resource_path
+def _patch_all_modules():
+    """Patch get_resource_path in every already-loaded feat submodule."""
+    _feat_io.get_resource_path = _writable_get_resource_path
+    for mod in sys.modules.values():
+        if (
+            mod is not None
+            and getattr(mod, "__name__", "").startswith("feat")
+            and hasattr(mod, "get_resource_path")
+            and getattr(mod, "get_resource_path") is _orig_get_resource_path
+        ):
+            mod.get_resource_path = _writable_get_resource_path
+
+# Eagerly import all submodules that use get_resource_path so they're in
+# sys.modules, then patch them all at once.
+_feat_submodules = [
+    "feat.pretrained",
+    "feat.detector",
+    "feat.face_detectors.Retinaface.Retinaface_test",
+    "feat.facepose_detectors.img2pose.img2pose_test",
+    "feat.au_detectors.StatLearning.SL_test",
+    "feat.emo_detectors.StatLearning.EmoSL_test",
+    "feat.emo_detectors.ResMaskNet.resmasknet_test",
+    "feat.utils.image_operations",
+]
+for _modname in _feat_submodules:
+    try:
+        __import__(_modname)
+    except Exception:
+        pass
+
+_patch_all_modules()
 
 # Set up the Streamlit page configuration
 st.set_page_config(
