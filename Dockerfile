@@ -2,9 +2,9 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system deps (minimal, needed by some py-feat/torch ops)
+# Install system deps needed by py-feat/torch and healthcheck
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && \
+    apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -24,11 +24,13 @@ Detector(face_model='retinaface', landmark_model='mobilefacenet', \
 # Copy app code
 COPY . .
 
-EXPOSE 8501
+# Appliku sets $PORT; default to 8501
+ENV PORT=8501
+EXPOSE ${PORT}
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
 
-CMD ["streamlit", "run", "home.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.headless=true"]
+CMD streamlit run home.py \
+    --server.port=${PORT} \
+    --server.address=0.0.0.0 \
+    --server.headless=true
