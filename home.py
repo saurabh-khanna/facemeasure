@@ -226,22 +226,16 @@ if submitted:
                     temp_paths.append(temp_path)
                     name_map[temp_path] = img_file.name
 
-                # Single-pass detection: faces, landmarks, AUs — all at once
-                fex_results = detector.detect_image(
-                    temp_paths,
-                    batch_size=1,
-                    num_workers=0,
-                )
-
-                # Take first detected face per image; convert to result dicts
-                fex_by_input = fex_results.groupby('input').first().reset_index()
-
+                # Detect faces, landmarks, AUs one image at a time
                 for idx, temp_path in enumerate(temp_paths):
-                    matching = fex_by_input[fex_by_input['input'] == temp_path]
-                    if len(matching) > 0:
-                        data = fex_row_to_result(matching.iloc[0])
-                    else:
-                        data = {"Error": "No face detected"}
+                    try:
+                        fex = detector.detect_image(temp_path)
+                        if len(fex) > 0:
+                            data = fex_row_to_result(fex.iloc[0])
+                        else:
+                            data = {"Error": "No face detected"}
+                    except Exception as img_err:
+                        data = {"Error": str(img_err)}
                     data["Image_Name"] = name_map[temp_path]
                     results.append(data)
                     progress_bar.progress((idx + 1) / total_images)
