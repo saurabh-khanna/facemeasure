@@ -8,6 +8,33 @@ import random
 import json
 import tempfile
 import os
+import shutil
+
+# --- Redirect py-feat model downloads to a writable cache directory ---
+# On deployed environments (e.g., AWS), site-packages is read-only.
+# This must run BEFORE any py-feat imports that trigger model downloads.
+import feat
+import feat.utils.io as _feat_io
+
+_ORIGINAL_RESOURCE_PATH = os.path.join(feat.__path__[0], "resources")
+_WRITABLE_RESOURCE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "feat", "resources")
+
+def _writable_get_resource_path():
+    """Return a writable resource directory, seeded with shipped files."""
+    if not os.path.isdir(_WRITABLE_RESOURCE_PATH):
+        os.makedirs(_WRITABLE_RESOURCE_PATH, exist_ok=True)
+        # Copy shipped files (e.g. model_list.json) from original location
+        if os.path.isdir(_ORIGINAL_RESOURCE_PATH):
+            for fname in os.listdir(_ORIGINAL_RESOURCE_PATH):
+                src = os.path.join(_ORIGINAL_RESOURCE_PATH, fname)
+                dst = os.path.join(_WRITABLE_RESOURCE_PATH, fname)
+                if not os.path.exists(dst):
+                    if os.path.isfile(src):
+                        shutil.copy2(src, dst)
+    return _WRITABLE_RESOURCE_PATH
+
+# Monkey-patch so all py-feat code uses the writable path
+_feat_io.get_resource_path = _writable_get_resource_path
 
 # Set up the Streamlit page configuration
 st.set_page_config(
