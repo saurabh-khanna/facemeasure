@@ -6,8 +6,7 @@ from streamlit_lottie import st_lottie
 from datetime import datetime
 import random
 import json
-import tempfile
-import os
+import time
 import torch
 
 # Set up the Streamlit page configuration
@@ -29,18 +28,6 @@ col1, col2, col3 = st.columns([1, 1.618, 1])
 with col2:
     st_lottie("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
 
-# Inject custom CSS to set the width of the sidebar
-st.markdown(
-    """
-    <style>
-        section[data-testid="stSidebar"] {
-            width: 350px !important; # Set the width to your desired value
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 st.markdown("""
     <style>
     @keyframes blink {
@@ -56,7 +43,30 @@ st.markdown("""
     </p>
     """, unsafe_allow_html=True) 
 
-# Sidebar information
+# --- Analysis options (main body, compact row of toggles) ---
+with st.expander("Analysis options", icon=":material/tune:"):
+    opt_col1, opt_col2, opt_col3 = st.columns(3)
+    with opt_col1:
+        detect_aus_flag = st.toggle(
+            "Action Units (AUs)",
+            value=False,
+            help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
+        )
+    with opt_col2:
+        detect_emotions_flag = st.toggle(
+            "Emotions",
+            value=False,
+            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
+        )
+    with opt_col3:
+        detect_pose_flag = st.toggle(
+            "Head Pose",
+            value=False,
+            help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
+        )
+    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
+
+# Sidebar
 st.sidebar.title(":bust_in_silhouette: facemeasure")
 
 st.sidebar.markdown("""
@@ -73,6 +83,8 @@ st.sidebar.markdown("""
 """, unsafe_allow_html=True)
 
 # Load py-feat Detector (cached for speed across reruns)
+# All models are loaded at init (py-feat doesn't support lazy loading),
+# but we skip expensive inference steps at runtime via individual detect methods.
 @st.cache_resource
 def load_detector():
     from feat import Detector
@@ -85,12 +97,29 @@ def load_detector():
         device='cpu',
     )
 
-# AU column names returned by py-feat
+# Column name constants
 AU_COLUMNS = [
     'AU01', 'AU02', 'AU04', 'AU05', 'AU06', 'AU07', 'AU09', 'AU10',
     'AU11', 'AU12', 'AU14', 'AU15', 'AU17', 'AU20', 'AU23', 'AU24',
     'AU25', 'AU26', 'AU28', 'AU43',
 ]
+
+EMOTION_COLUMNS = ['anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise', 'neutral']
+
+# Precomputed landmark connection groups (avoids rebuilding lists per draw call)
+_LANDMARK_GROUPS = [
+    list(range(0, 17)),      # Jawline
+    list(range(17, 22)),     # Left eyebrow
+    list(range(22, 27)),     # Right eyebrow
+    list(range(27, 31)),     # Nose bridge
+    list(range(31, 36)),     # Lower nose
+    list(range(36, 42)),     # Left eye
+    list(range(42, 48)),     # Right eye
+    list(range(48, 60)),     # Outer lip
+    list(range(60, 68)),     # Inner lip
+]
+_CLOSED_GROUPS = {4, 5, 6, 7, 8}  # Indices into _LANDMARK_GROUPS that should be closed loops
+
 
 def calculate_eyebrow_v_shape(landmarks_dict):
     """Calculate eyebrow V-shape metric based on eyebrow slopes."""
@@ -131,27 +160,78 @@ def calculate_fwhr(landmarks_dict):
     return width / height if height != 0 else 0
 
 
-def fex_row_to_result(row):
-    """Convert a single py-feat Fex row into a result dict with landmarks, AUs, and metrics."""
+def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, detect_pose=False):
+    """
+    Custom pipeline using individual py-feat detect methods.
+    Only runs the detectors the user has enabled, skipping expensive
+    steps (AUs, emotions, pose) when not needed.
+
+    Always runs: face detection → landmark detection → fWHR + Eyebrow_V.
+    """
     result = {}
 
-    # Extract 68 landmarks (py-feat uses x_0..x_67, y_0..y_67)
+    # --- Always: detect faces ---
+    faces = detector.detect_faces(img_array)
+    if not faces or not faces[0]:
+        return {"Error": "No face detected"}
+
+    # --- Always: detect landmarks (needed for metrics) ---
+    landmarks = detector.detect_landmarks(img_array, detected_faces=faces)
+    if not landmarks or not landmarks[0]:
+        return {"Error": "Landmark detection failed"}
+
+    # Take the first detected face
+    lm = np.array(landmarks[0][0])  # shape (68, 2)
+
+    # Store landmark coordinates
     for i in range(68):
-        result[f"LM_{i}_X"] = round(float(row[f"x_{i}"]), 4)
-        result[f"LM_{i}_Y"] = round(float(row[f"y_{i}"]), 4)
+        result[f"LM_{i}_X"] = round(float(lm[i, 0]), 4)
+        result[f"LM_{i}_Y"] = round(float(lm[i, 1]), 4)
 
-    # Extract Action Units
-    for col in AU_COLUMNS:
-        if col in row.index:
-            result[col] = round(float(row[col]), 4)
-
-    # Compute derived metrics from landmarks
+    # Always: compute derived metrics from landmarks (fast - pure math)
     try:
         result["Eyebrow_V"] = round(calculate_eyebrow_v_shape(result), 4)
         result["fWHR"] = round(calculate_fwhr(result), 4)
     except Exception:
         result["Eyebrow_V"] = None
         result["fWHR"] = None
+
+    # --- Optional: Action Units (HOG extraction + XGB - slowest step) ---
+    if detect_aus:
+        try:
+            aus = detector.detect_aus(img_array, landmarks)
+            if aus is not None and len(aus) > 0:
+                au_frame = np.array(aus[0])
+                au_vals = au_frame[0] if au_frame.ndim == 2 else au_frame
+                for col, val in zip(AU_COLUMNS, au_vals):
+                    result[col] = round(float(val), 4)
+        except Exception:
+            pass  # AUs unavailable for this image
+
+    # --- Optional: Emotions ---
+    if detect_emotions:
+        try:
+            emotions = detector.detect_emotions(img_array, faces, landmarks)
+            if emotions is not None and len(emotions) > 0:
+                emo_frame = np.array(emotions[0])
+                emo_vals = emo_frame[0] if emo_frame.ndim == 2 else emo_frame
+                for col, val in zip(EMOTION_COLUMNS, emo_vals):
+                    result[col] = round(float(val), 4)
+        except Exception:
+            pass  # Emotions unavailable for this image
+
+    # --- Optional: Head Pose (img2pose - runs its own face detection internally) ---
+    if detect_pose:
+        try:
+            poses_dict = detector.detect_facepose(img_array, landmarks)
+            poses = poses_dict.get("poses", [])
+            if poses and poses[0]:
+                p = np.array(poses[0][0])
+                result["Pitch"] = round(float(p[0]), 4)
+                result["Roll"] = round(float(p[1]), 4)
+                result["Yaw"] = round(float(p[2]), 4)
+        except Exception:
+            pass  # Pose unavailable for this image
 
     return result
 
@@ -162,39 +242,31 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
     draw = ImageDraw.Draw(img_with_landmarks)
     width, height = img_with_landmarks.size
     dot_radius = max(2, int(min(width, height) * 0.008))
+    line_width = max(1, dot_radius // 2)
 
-    # Draw points
+    # Build lookup of (x, y) per landmark index once
+    pts = {}
     for i in range(68):
         x = landmarks_data.get(f"LM_{i}_X")
         y = landmarks_data.get(f"LM_{i}_Y")
         if x is not None and y is not None:
-            draw.ellipse([(x - dot_radius, y - dot_radius), (x + dot_radius, y + dot_radius)], fill="yellow", outline="yellow")
+            pts[i] = (x, y)
+            draw.ellipse(
+                [(x - dot_radius, y - dot_radius), (x + dot_radius, y + dot_radius)],
+                fill="yellow", outline="yellow",
+            )
 
-    # Draw lines for facial features
-    landmark_connections = [
-        list(range(0, 17)),      # Jawline
-        list(range(17, 22)),     # Left eyebrow
-        list(range(22, 27)),     # Right eyebrow
-        list(range(27, 31)),     # Nose bridge
-        list(range(31, 36)),     # Lower nose
-        list(range(36, 42)),     # Left eye
-        list(range(42, 48)),     # Right eye
-        list(range(48, 60)),     # Outer lip
-        list(range(60, 68)),     # Inner lip
-    ]
-
-    for group in landmark_connections:
-        for i in range(len(group) - 1):
-            x1, y1 = landmarks_data.get(f"LM_{group[i]}_X"), landmarks_data.get(f"LM_{group[i]}_Y")
-            x2, y2 = landmarks_data.get(f"LM_{group[i+1]}_X"), landmarks_data.get(f"LM_{group[i+1]}_Y")
-            if None not in (x1, y1, x2, y2):
-                draw.line([(x1, y1), (x2, y2)], fill="lime", width=max(1, dot_radius//2))
-        # For closed curves, connect last to first
-        if group in [list(range(36, 42)), list(range(42, 48)), list(range(48, 60)), list(range(60, 68))]:
-            x1, y1 = landmarks_data.get(f"LM_{group[0]}_X"), landmarks_data.get(f"LM_{group[0]}_Y")
-            x2, y2 = landmarks_data.get(f"LM_{group[-1]}_X"), landmarks_data.get(f"LM_{group[-1]}_Y")
-            if None not in (x1, y1, x2, y2):
-                draw.line([(x1, y1), (x2, y2)], fill="lime", width=max(1, dot_radius//2))
+    # Draw lines for facial feature groups
+    for g_idx, group in enumerate(_LANDMARK_GROUPS):
+        for j in range(len(group) - 1):
+            p1, p2 = pts.get(group[j]), pts.get(group[j + 1])
+            if p1 and p2:
+                draw.line([p1, p2], fill="lime", width=line_width)
+        # Close loops for eyes, lips
+        if g_idx in _CLOSED_GROUPS:
+            p1, p2 = pts.get(group[0]), pts.get(group[-1])
+            if p1 and p2:
+                draw.line([p1, p2], fill="lime", width=line_width)
 
     return img_with_landmarks
 
@@ -211,56 +283,63 @@ if submitted:
         results = []
         progress_bar = st.progress(0, "Analyzing...")
         total_images = len(uploaded_images)
+        start_time = time.time()
 
         try:
             detector = load_detector()
 
-            # Save uploaded images to temp files (py-feat requires file paths)
-            with tempfile.TemporaryDirectory() as tmpdir:
-                temp_paths = []
-                name_map = {}  # temp_path -> original filename
-                for idx, img_file in enumerate(uploaded_images):
+            for idx, img_file in enumerate(uploaded_images):
+                try:
                     img_file.seek(0)
-                    temp_path = os.path.join(tmpdir, f"{idx}_{img_file.name}")
-                    with open(temp_path, "wb") as f:
-                        f.write(img_file.read())
-                    temp_paths.append(temp_path)
-                    name_map[temp_path] = img_file.name
+                    pil_img = Image.open(img_file).convert("RGB")
+                    img_array = np.array(pil_img)
 
-                # Detect faces, landmarks, AUs one image at a time
-                for idx, temp_path in enumerate(temp_paths):
-                    try:
-                        with torch.no_grad():
-                            fex = detector.detect_image(temp_path)
-                        if len(fex) > 0:
-                            data = fex_row_to_result(fex.iloc[0])
-                        else:
-                            data = {"Error": "No face detected"}
-                    except Exception as img_err:
-                        data = {"Error": str(img_err)}
-                    data["Image_Name"] = name_map[temp_path]
-                    results.append(data)
-                    progress_bar.progress((idx + 1) / total_images)
+                    with torch.no_grad():
+                        data = analyze_image(
+                            detector, img_array,
+                            detect_aus=detect_aus_flag,
+                            detect_emotions=detect_emotions_flag,
+                            detect_pose=detect_pose_flag,
+                        )
+                except Exception as img_err:
+                    data = {"Error": str(img_err)}
+                data["Image_Name"] = img_file.name
+                results.append(data)
+                progress_bar.progress((idx + 1) / total_images)
 
         except Exception as e:
             st.error(f"Analysis failed: {e}")
             results = [{"Error": str(e), "Image_Name": img.name} for img in uploaded_images]
 
+        elapsed = time.time() - start_time
         progress_bar.empty()
         df = pd.DataFrame(results)
 
-        # Reorder columns: Image_Name first, then landmarks, then AUs, then facial metrics last
-        landmark_cols = [col for col in df.columns if col.startswith("LM_")]
-        au_cols = [col for col in AU_COLUMNS if col in df.columns]
-        metric_cols = ["Eyebrow_V", "fWHR"]
-        other_cols = [col for col in df.columns if col not in landmark_cols + au_cols + metric_cols + ["Image_Name"]]
+        # Reorder columns: most useful first, raw landmarks last
+        present = set(df.columns)
+        metric_cols = [c for c in ("fWHR", "Eyebrow_V") if c in present]
+        au_cols = [c for c in AU_COLUMNS if c in present]
+        emotion_cols = [c for c in EMOTION_COLUMNS if c in present]
+        pose_cols = [c for c in ("Pitch", "Roll", "Yaw") if c in present]
+        landmark_cols = [c for c in df.columns if c.startswith("LM_")]
+        ordered = ["Image_Name"] + metric_cols + au_cols + emotion_cols + pose_cols + landmark_cols
+        ordered_set = set(ordered)
+        other_cols = [c for c in df.columns if c not in ordered_set]
+        df = df[[c for c in ordered + other_cols if c in present]]
 
-        column_order = ["Image_Name"] + landmark_cols + au_cols + metric_cols + other_cols
-        df = df[[col for col in column_order if col in df.columns]]
+        # Summary of features computed
+        feat_list = ["Landmarks", "fWHR", "Eyebrow V"]
+        if detect_aus_flag:
+            feat_list.append("Action Units")
+        if detect_emotions_flag:
+            feat_list.append("Emotions")
+        if detect_pose_flag:
+            feat_list.append("Head Pose")
 
         # Display results
         st.write("&nbsp;")
         st.subheader("Analysis Results")
+        st.caption(f"Analyzed {total_images} image(s) in {elapsed:.1f}s  ·  Features: {', '.join(feat_list)}")
         
         with st.container(border=True):
             st.dataframe(df, hide_index=True)
@@ -293,7 +372,7 @@ if submitted:
                 type="primary"
             )
 
-        # === NEW: Show landmarks on a randomly chosen image ===
+        # === Show landmarks on a randomly chosen image ===
         with st.container(border=True):
             valid_results = [r for r in results if "Error" not in r]
             if valid_results:
@@ -306,6 +385,7 @@ if submitted:
                 
                 for img in uploaded_images:
                     if img.name == chosen_img_name:
+                        img.seek(0)
                         with Image.open(img) as pil_img:
                             # Draw landmarks on grayscale image
                             pil_gray = ImageOps.grayscale(pil_img)
