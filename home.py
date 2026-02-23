@@ -148,7 +148,7 @@ st.sidebar.markdown("""
 #   emotion_model   = 'svm'            (fast; avoids 529 MB resmasknet)
 #   facepose_model  = 'img2pose'       (Euler angles: pitch, roll, yaw)
 # ---------------------------------------------------------------------------
-@st.cache_resource(show_spinner="Loading face detection models — this only happens once...")
+@st.cache_resource(show_spinner="Loading face detection models...")
 def load_detector():
     """Initialise and return a cached py-feat Detector instance."""
     from feat import Detector
