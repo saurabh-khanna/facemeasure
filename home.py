@@ -1,3 +1,23 @@
+"""
+facemeasure — A web application for scalable facial metric extraction.
+
+This Streamlit application provides a browser-based interface for extracting
+facial landmarks, derived morphological metrics (fWHR, eyebrow V-shape),
+action units (AUs), emotion classifications, and head pose estimates from
+uploaded facial images.  It wraps the py-feat library (Cheong et al., 2023)
+and exposes individual detection stages through user-facing toggles so that
+researchers can skip expensive analyses they do not need.
+
+Usage:
+    streamlit run home.py
+
+Repository: https://github.com/saurabh-khanna/facemeasure
+License:    AGPL-3.0
+"""
+
+# ---------------------------------------------------------------------------
+# Imports
+# ---------------------------------------------------------------------------
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -9,10 +29,12 @@ import json
 import time
 import torch
 
-# Set up the Streamlit page configuration
+# ---------------------------------------------------------------------------
+# Page configuration  (must be the first Streamlit call)
+# ---------------------------------------------------------------------------
 st.set_page_config(
-    page_icon="👤", 
-    page_title="facemeasure", 
+    page_icon="👤",
+    page_title="facemeasure",
     layout="centered",
     menu_items={
         "Get Help": None,
@@ -20,14 +42,18 @@ st.set_page_config(
         "About": None,
     })
 
-# Main page content
+# ---------------------------------------------------------------------------
+# Header & hero animation
+# ---------------------------------------------------------------------------
 st.title(":bust_in_silhouette: facemeasure")
 
+# Centre the Lottie animation using a golden-ratio column layout
 col1, col2, col3 = st.columns([1, 1.618, 1])
 
 with col2:
     st_lottie("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
 
+# Introductory blurb with a blinking cursor animation
 st.markdown("""
     <style>
     @keyframes blink {
@@ -39,11 +65,18 @@ st.markdown("""
     }
     </style>
     <p style='text-align: left; font-size: 18px;'>
-        <b>facemeasure</b> democratizes facial analysis by allowing researchers to obtain precise facial metrics instantly without relying on expensive software or programming skills. Upload one or more facial image(s) to get started<b><span class="blinking-underscore">_</span></b>
+        <b>facemeasure</b> democratizes facial analysis by allowing researchers
+        to obtain precise facial metrics instantly without relying on expensive
+        software or programming skills. Upload one or more facial image(s) to
+        get started<b><span class="blinking-underscore">_</span></b>
     </p>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
 
-# --- Analysis options (main body, compact row of toggles) ---
+# ---------------------------------------------------------------------------
+# Analysis options — toggles in the main body (not the sidebar)
+# Researchers enable only the analyses they need; everything else is skipped
+# at inference time, which dramatically reduces per-image processing time.
+# ---------------------------------------------------------------------------
 with st.expander("Analysis options", icon=":material/tune:"):
     opt_col1, opt_col2, opt_col3 = st.columns(3)
     with opt_col1:
@@ -66,7 +99,9 @@ with st.expander("Analysis options", icon=":material/tune:"):
         )
     st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
 
-# Sidebar
+# ---------------------------------------------------------------------------
+# Sidebar — project information and privacy notice
+# ---------------------------------------------------------------------------
 st.sidebar.title(":bust_in_silhouette: facemeasure")
 
 st.sidebar.markdown("""
@@ -82,11 +117,24 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Load py-feat Detector (cached for speed across reruns)
-# All models are loaded at init (py-feat doesn't support lazy loading),
-# but we skip expensive inference steps at runtime via individual detect methods.
+# ---------------------------------------------------------------------------
+# Model loading — cached across Streamlit reruns via @st.cache_resource
+#
+# py-feat loads ALL model weights eagerly at __init__ (~1 GB total).
+# We pay this cost once; subsequent reruns reuse the cached Detector.
+# The selective speed-up happens at *inference* time, not at init: we call
+# individual detect_* methods instead of the monolithic detect_image().
+#
+# Model choices:
+#   face_model      = 'retinaface'     (small CNN, 1.7 MB)
+#   landmark_model  = 'mobilefacenet'   (12 MB, batch-safe)
+#   au_model        = 'xgb'            (returns AU probabilities)
+#   emotion_model   = 'svm'            (fast; avoids 529 MB resmasknet)
+#   facepose_model  = 'img2pose'       (Euler angles: pitch, roll, yaw)
+# ---------------------------------------------------------------------------
 @st.cache_resource
 def load_detector():
+    """Initialise and return a cached py-feat Detector instance."""
     from feat import Detector
     return Detector(
         face_model='retinaface',
@@ -97,32 +145,59 @@ def load_detector():
         device='cpu',
     )
 
-# Column name constants
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# 20 Facial Action Units returned by py-feat's XGB model (Ekman & Friesen, 1978)
 AU_COLUMNS = [
     'AU01', 'AU02', 'AU04', 'AU05', 'AU06', 'AU07', 'AU09', 'AU10',
     'AU11', 'AU12', 'AU14', 'AU15', 'AU17', 'AU20', 'AU23', 'AU24',
     'AU25', 'AU26', 'AU28', 'AU43',
 ]
 
-EMOTION_COLUMNS = ['anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise', 'neutral']
-
-# Precomputed landmark connection groups (avoids rebuilding lists per draw call)
-_LANDMARK_GROUPS = [
-    list(range(0, 17)),      # Jawline
-    list(range(17, 22)),     # Left eyebrow
-    list(range(22, 27)),     # Right eyebrow
-    list(range(27, 31)),     # Nose bridge
-    list(range(31, 36)),     # Lower nose
-    list(range(36, 42)),     # Left eye
-    list(range(42, 48)),     # Right eye
-    list(range(48, 60)),     # Outer lip
-    list(range(60, 68)),     # Inner lip
+# Basic emotion categories from py-feat's SVM classifier
+EMOTION_COLUMNS = [
+    'anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise', 'neutral',
 ]
-_CLOSED_GROUPS = {4, 5, 6, 7, 8}  # Indices into _LANDMARK_GROUPS that should be closed loops
 
+# Landmark connection topology for visualisation.  The 68-point markup
+# follows the iBUG 300-W convention.  Groups of consecutive landmark
+# indices are connected with line segments; "closed" groups (eyes, lips)
+# have an additional segment from the last point back to the first.
+_LANDMARK_GROUPS = [
+    list(range(0, 17)),      # 0  Jawline
+    list(range(17, 22)),     # 1  Left eyebrow
+    list(range(22, 27)),     # 2  Right eyebrow
+    list(range(27, 31)),     # 3  Nose bridge
+    list(range(31, 36)),     # 4  Lower nose
+    list(range(36, 42)),     # 5  Left eye
+    list(range(42, 48)),     # 6  Right eye
+    list(range(48, 60)),     # 7  Outer lip
+    list(range(60, 68)),     # 8  Inner lip
+]
+_CLOSED_GROUPS = {4, 5, 6, 7, 8}  # lower nose + eyes + lips are closed loops
+
+
+# ---------------------------------------------------------------------------
+# Derived facial metrics — computed from 68 landmark coordinates
+# ---------------------------------------------------------------------------
 
 def calculate_eyebrow_v_shape(landmarks_dict):
-    """Calculate eyebrow V-shape metric based on eyebrow slopes."""
+    """Compute an eyebrow V-shape index from landmark slopes.
+
+    The metric captures the degree to which the medial ends of the eyebrows
+    are raised relative to the lateral ends, producing a V- or inverted-V
+    appearance (Hehman et al., 2015).  Landmark coordinates are first
+    z-standardised across all 68 points so the result is scale-invariant.
+
+    Args:
+        landmarks_dict: dict mapping 'LM_{i}_X' / 'LM_{i}_Y' to floats.
+
+    Returns:
+        float: Positive values indicate a V (inner ends raised), negative
+        values indicate an inverted-V (inner ends lowered).
+    """
     left_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(18, 22)]
     right_eyebrow = [(landmarks_dict[f"LM_{i}_X"], landmarks_dict[f"LM_{i}_Y"]) for i in range(22, 26)]
 
@@ -154,19 +229,49 @@ def calculate_eyebrow_v_shape(landmarks_dict):
 
 
 def calculate_fwhr(landmarks_dict):
-    """Calculate facial width-to-height ratio (fWHR)."""
+    """Compute the facial width-to-height ratio (fWHR).
+
+    fWHR is calculated as bizygomatic width (distance between landmarks 0
+    and 16, i.e. the jawline endpoints) divided by upper-face height
+    (distance between landmark 27 at the nasion and landmark 51 at the
+    upper lip) following Carré & McCormick (2008).
+
+    Args:
+        landmarks_dict: dict mapping 'LM_{i}_X' / 'LM_{i}_Y' to floats.
+
+    Returns:
+        float: The fWHR value, or 0 if the height is zero.
+    """
     width = abs(landmarks_dict["LM_16_X"] - landmarks_dict["LM_0_X"])
     height = abs(landmarks_dict["LM_51_Y"] - landmarks_dict["LM_27_Y"])
     return width / height if height != 0 else 0
 
 
-def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, detect_pose=False):
-    """
-    Custom pipeline using individual py-feat detect methods.
-    Only runs the detectors the user has enabled, skipping expensive
-    steps (AUs, emotions, pose) when not needed.
+# ---------------------------------------------------------------------------
+# Core analysis pipeline
+# ---------------------------------------------------------------------------
 
-    Always runs: face detection → landmark detection → fWHR + Eyebrow_V.
+def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, detect_pose=False):
+    """Run the facial analysis pipeline on a single image.
+
+    Instead of using py-feat's monolithic ``detect_image()`` — which always
+    executes every detection stage — this function calls individual
+    ``detect_*`` methods selectively.  The mandatory stages (face detection
+    and landmark detection) are always run because they are prerequisites
+    for the derived metrics (fWHR, eyebrow V-shape).  Optional stages
+    (AUs, emotions, head pose) are only executed when the corresponding
+    flag is ``True``, saving substantial processing time per image.
+
+    Args:
+        detector:        A py-feat ``Detector`` instance.
+        img_array:       NumPy array of shape (H, W, 3), dtype uint8.
+        detect_aus:      If True, run Action Unit detection.
+        detect_emotions: If True, run emotion classification.
+        detect_pose:     If True, run head pose estimation.
+
+    Returns:
+        dict: Keys are column names (e.g. 'LM_0_X', 'fWHR', 'AU01', ...)
+              mapped to float values, or an 'Error' key if detection failed.
     """
     result = {}
 
@@ -236,8 +341,25 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     return result
 
 
+# ---------------------------------------------------------------------------
+# Landmark visualisation
+# ---------------------------------------------------------------------------
+
 def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.Image:
-    """Draws landmarks with size scaled to image, and connects groups correctly."""
+    """Overlay 68-point facial landmarks and connection lines on an image.
+
+    Dot and line sizes are scaled proportionally to image dimensions so
+    the visualisation looks reasonable on both small thumbnails and
+    high-resolution photographs.
+
+    Args:
+        image:          A PIL Image (RGB).
+        landmarks_data: dict mapping 'LM_{i}_X' / 'LM_{i}_Y' to pixel
+                        coordinates.
+
+    Returns:
+        PIL.Image.Image with landmarks drawn on top.
+    """
     img_with_landmarks = image.copy()
     draw = ImageDraw.Draw(img_with_landmarks)
     width, height = img_with_landmarks.size
@@ -271,7 +393,9 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
     return img_with_landmarks
 
 
-# Allow multiple image uploads using a Streamlit form
+# ---------------------------------------------------------------------------
+# Upload form
+# ---------------------------------------------------------------------------
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
     submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")

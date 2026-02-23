@@ -1,6 +1,6 @@
-numpy
-pandas
-Pillow
-py-feat
-streamlit
-streamlit-lottie
+numpy>=1.23.5,<2.0.0
+pandas>=2.0.0,<3.0.0
+Pillow>=10.0.0,<12.0.0
+py-feat>=0.6.0,<0.7.0
+streamlit>=1.30.0,<2.0.0
+streamlit-lottie>=0.0.5,<1.0.0

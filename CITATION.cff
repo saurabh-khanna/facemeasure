@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "facemeasure: A web application for scalable facial metric extraction"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+version: 1.0.0
+license: AGPL-3.0
+repository-code: https://github.com/saurabh-khanna/facemeasure
+url: https://facemeasure.com
+authors:
+  - family-names: Khanna
+    given-names: Saurabh
+    orcid: https://orcid.org/0000-0002-9346-4896
+    affiliation: University of Amsterdam
+  - family-names: Witkower
+    given-names: Zachary
+    orcid: https://orcid.org/0000-0002-6767-9834
+    affiliation: University of Amsterdam
+keywords:
+  - facial analysis
+  - facial landmarks
+  - emotion recognition
+  - action units
+  - web application
+date-released: 2026-02-22

@@ -21,6 +21,59 @@
 Try it live:
 [👉 facemeasure](https://facemeasure.com)
 
+## 📦 Installation
+
+### Option 1: Use the Live App (No Installation)
+
+Visit [facemeasure.com](https://facemeasure.com) — nothing to install!
+
+### Option 2: Run Locally with Python
+
+**Requirements**: Python 3.9 or later
+
+```bash
+# Clone the repository
+git clone https://github.com/saurabh-khanna/facemeasure.git
+cd facemeasure
+
+# Create a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+streamlit run home.py
+```
+
+The app will open in your browser at `http://localhost:8501`.
+
+### Option 3: Run with Docker
+
+**Requirements**: Docker installed on your system
+
+```bash
+# Clone the repository
+git clone https://github.com/saurabh-khanna/facemeasure.git
+cd facemeasure
+
+# Build the Docker image
+docker build -t facemeasure .
+
+# Run the container
+docker run -p 8501:8501 facemeasure
+```
+
+Access the app at `http://localhost:8501`.
+
+### Running Tests
+
+```bash
+pip install pytest
+pytest test_pipeline.py -v
+```
+
 ## 🧑‍🔬 How to Use
 
 1. **Upload** one or more JPEG or PNG images containing faces.
