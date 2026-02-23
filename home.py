@@ -24,10 +24,24 @@ import pandas as pd
 from PIL import Image, ImageOps, ImageDraw
 from streamlit_lottie import st_lottie
 from datetime import datetime
+import requests
 import random
 import json
 import time
 import torch
+
+
+# ---------------------------------------------------------------------------
+# Cached data loaders
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False)
+def load_lottie_url(url: str):
+    """Fetch a Lottie animation JSON from *url*, cached across reruns."""
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
 
 # ---------------------------------------------------------------------------
 # Page configuration  (must be the first Streamlit call)
@@ -51,7 +65,9 @@ st.title(":bust_in_silhouette: facemeasure")
 col1, col2, col3 = st.columns([1, 1.618, 1])
 
 with col2:
-    st_lottie("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
+    lottie_json = load_lottie_url("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
+    if lottie_json:
+        st_lottie(lottie_json)
 
 # Introductory blurb with a blinking cursor animation
 st.markdown("""
@@ -132,7 +148,7 @@ st.sidebar.markdown("""
 #   emotion_model   = 'svm'            (fast; avoids 529 MB resmasknet)
 #   facepose_model  = 'img2pose'       (Euler angles: pitch, roll, yaw)
 # ---------------------------------------------------------------------------
-@st.cache_resource
+@st.cache_resource(show_spinner="Loading face detection models — this only happens once...")
 def load_detector():
     """Initialise and return a cached py-feat Detector instance."""
     from feat import Detector
