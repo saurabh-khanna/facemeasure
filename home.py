@@ -204,8 +204,8 @@ def calculate_eyebrow_v_shape(landmarks_dict):
 
     The metric captures the degree to which the medial ends of the eyebrows
     are raised relative to the lateral ends, producing a V- or inverted-V
-    appearance (Hehman et al., 2015).  Landmark coordinates are first
-    z-standardised across all 68 points so the result is scale-invariant.
+    appearance.  Landmark coordinates are first z-standardised across all 
+    68 points so the result is scale-invariant.
 
     Args:
         landmarks_dict: dict mapping 'LM_{i}_X' / 'LM_{i}_Y' to floats.

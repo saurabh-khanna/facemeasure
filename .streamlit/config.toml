@@ -23,4 +23,4 @@ toolbarMode = "minimal"
 maxUploadSize = 10
 
 [browser]
-gatherUsageStats = false 
+gatherUsageStats = false

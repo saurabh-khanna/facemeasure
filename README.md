@@ -8,10 +8,14 @@
 
 ## 🚀 Features
 
-* **Facial Landmark Detection**: Instantly extract 68 facial landmarks from each face in your images using dlib’s shape predictor.
+* **Facial Landmark Detection**: Instantly extract 68 facial landmarks from each face using py-feat's modular detection pipeline.
+* **Derived Metrics**: Automatically computes facial width-to-height ratio (fWHR) and eyebrow V-shape index from detected landmarks.
+* **Action Unit Detection**: Optionally detect 20 facial action units (AU01–AU43) using HOG features and XGBoost classifiers.
+* **Emotion Classification**: Optionally classify 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).
+* **Head Pose Estimation**: Optionally estimate head orientation (pitch, roll, yaw) via img2pose.
 * **Batch Processing**: Upload and analyze multiple images at once.
-* **Interactive Visualization**: See landmarks drawn and connected over each face (on grayscale or original images).
-* **Download Results**: Export all detected landmarks as CSV or JSON.
+* **Interactive Visualization**: See landmarks drawn and connected over each face.
+* **Download Results**: Export all results as CSV or JSON.
 * **Privacy-Friendly**: No images or data are ever stored—refresh the app to clear everything.
 * **Free & Open Source**: Supported by the Social and Behavioural Data Science Centre, University of Amsterdam.
 
@@ -84,15 +88,15 @@ pytest test_pipeline.py -v
 
 ## 📝 Output
 
-* **CSV**: All landmarks for each image (columns: `Image_Name`, `LM_0_X`, `LM_0_Y`, ...).
-* **JSON**: Structured array of objects with the same landmark keys.
+* **CSV**: All metrics and landmarks for each image (columns: `Image_Name`, `fWHR`, `Eyebrow_V`, `AU01`–`AU43`, emotions, `Pitch`, `Roll`, `Yaw`, `LM_0_X`, `LM_0_Y`, ...).
+* **JSON**: Structured array of objects with the same keys.
 * **Visualization**: Original and landmark-overlaid images shown side by side.
 
 
 ## 📚 Dependencies
 
 * [Streamlit](https://streamlit.io/)
-* [dlib](https://github.com/davisking/dlib)
+* [py-feat](https://py-feat.org/)
 * [numpy](https://numpy.org/)
 * [pandas](https://pandas.pydata.org/)
 * [Pillow](https://python-pillow.org/)
