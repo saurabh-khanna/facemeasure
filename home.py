@@ -177,7 +177,7 @@ st.markdown("""
     </style>
     <p style='text-align: left; font-size: 16px; line-height: 1.35; margin: 0 0 1.1rem 0;'>
         <b>FaceMeasure</b> democratizes facial analysis by enabling researchers
-        to instantly extract precise facial metrics—no expensive software or
+        to instantly extract precise facial metrics - no expensive software or
         programming required. Upload one or more facial images to begin<b><span class="blinking-underscore">_</span></b>
     </p>
     """, unsafe_allow_html=True)
