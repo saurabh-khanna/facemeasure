@@ -67,7 +67,7 @@ col1, col2, col3 = st.columns([1, 1.618, 1])
 with col2:
     lottie_json = load_lottie_url("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
     if lottie_json:
-        st_lottie(lottie_json)
+        st_lottie(lottie_json, height=120)
 
 # Introductory blurb with a blinking cursor animation
 st.markdown("""
@@ -79,12 +79,105 @@ st.markdown("""
     .blinking-underscore {
         animation: blink 1.5s step-start infinite;
     }
+
+    .block-container {
+        padding-top: 2.25rem;
+        padding-bottom: 2.25rem;
+    }
+
+    .block-container h1 {
+        margin-bottom: 0.15rem;
+        padding-bottom: 0;
+        line-height: 1.2;
+    }
+
+    .block-container h3 {
+        margin-top: 0.4rem;
+        margin-bottom: 0.2rem;
+    }
+
+    [data-testid="stVerticalBlock"] {
+        gap: 0.45rem;
+    }
+
+    [data-testid="stExpander"] {
+        margin-bottom: 0;
+    }
+
+    [data-testid="stExpander"] details {
+        padding-bottom: 0;
+    }
+
+    [data-testid="stExpander"] summary {
+        font-size: 0.78rem;
+        min-height: 1.9rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stVerticalBlock"] {
+        gap: 0.25rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="column"] {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] {
+        min-height: 1.45rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] label,
+    [data-testid="stExpander"] [data-testid="stToggle"] p,
+    [data-testid="stExpander"] [data-testid="stCaptionContainer"] {
+        font-size: 0.68rem;
+        line-height: 1.15;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] [role="switch"] {
+        transform: scale(0.78);
+        transform-origin: left center;
+    }
+
+    [data-testid="stForm"] {
+        border: 0;
+        padding: 0;
+    }
+
+    [data-testid="stDataFrame"] {
+        max-height: 24vh;
+        overflow: auto;
+    }
+
+    [data-testid="stImage"] img {
+        max-height: 24vh;
+        object-fit: contain;
+    }
+
+    .legal-footer {
+        position: fixed;
+        right: 1rem;
+        bottom: 0.45rem;
+        left: 1rem;
+        z-index: 999;
+        color: #5f6b73;
+        font-size: 0.68rem;
+        line-height: 1.25;
+        text-align: center;
+    }
+
+    .legal-footer a {
+        color: #3d5968;
+        text-decoration: none;
+    }
+
+    .legal-footer a:hover {
+        text-decoration: underline;
+    }
     </style>
-    <p style='text-align: left; font-size: 18px;'>
-        <b>facemeasure</b> democratizes facial analysis by allowing researchers
-        to obtain precise facial metrics instantly without relying on expensive
-        software or programming skills. Upload one or more facial image(s) to
-        get started<b><span class="blinking-underscore">_</span></b>
+    <p style='text-align: left; font-size: 16px; line-height: 1.35; margin: 0 0 1.1rem 0;'>
+        <b>FaceMeasure</b> democratizes facial analysis by enabling researchers
+        to instantly extract precise facial metrics—no expensive software or
+        programming required. Upload one or more facial images to begin<b><span class="blinking-underscore">_</span></b>
     </p>
     """, unsafe_allow_html=True)
 
@@ -130,6 +223,17 @@ st.sidebar.markdown("""
     <p>🌱 Supported by the Social and Behavioural Data Science Centre, University of Amsterdam</p>
     <p>🙈 No identifiable data is stored. Everything is cleared once you refresh this page or download results.</p>
     <p>🐧 Our open-source code base is available on <a href="https://github.com/saurabh-khanna/facemeasure" target="_blank">GitHub</a>.</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="legal-footer">
+    For more information contact Zak Witkower
+    (<a href="mailto:zakwitkower@gmail.com">zakwitkower@gmail.com</a>;
+    <a href="https://zakwitkower.com" target="_blank">zakwitkower.com</a>)
+    or Saurabh Khanna
+    (<a href="mailto:s.khanna@uva.nl">s.khanna@uva.nl</a>;
+    <a href="https://saurabh-khanna.github.io/" target="_blank">saurabh-khanna.github.io</a>).
 </div>
 """, unsafe_allow_html=True)
 
