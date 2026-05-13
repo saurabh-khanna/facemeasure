@@ -29,6 +29,7 @@ import random
 import json
 import time
 import torch
+import inspect
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +488,108 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
 
 
 # ---------------------------------------------------------------------------
+# Output explanation dialog
+# ---------------------------------------------------------------------------
+
+def render_output_explainer():
+    """Render a short guide to the landmark output."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDialog"] div[role="dialog"] {
+            width: min(96vw, 1280px);
+            max-width: min(96vw, 1280px);
+        }
+
+        div[data-testid="stDialog"] div[role="dialog"] [data-testid="stVerticalBlock"] {
+            gap: 0.45rem;
+        }
+
+        div[data-testid="stDialog"] [data-testid="stImage"] img {
+            max-height: 72vh;
+            object-fit: contain;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "FaceMeasure identifies 68 standard facial landmarks (using "
+        "MobileFaceNet) for each detected face (identified using RetinaFace), "
+        "and returns the X- and Y-coordinate for each landmark."
+    )
+
+    original_col, landmarks_col = st.columns(2)
+    with original_col:
+        st.image("static/1_original.png", caption="Original image", use_container_width=True)
+    with landmarks_col:
+        st.image("static/5_landmarksClose.jpeg", caption="Facial landmarks", use_container_width=True)
+
+
+def render_metrics_explainer():
+    """Render a short guide to additional derived facial metrics."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDialog"] div[role="dialog"] {
+            width: min(96vw, 1280px);
+            max-width: min(96vw, 1280px);
+        }
+
+        div[data-testid="stDialog"] div[role="dialog"] [data-testid="stVerticalBlock"] {
+            gap: 0.45rem;
+        }
+
+        div[data-testid="stDialog"] [data-testid="stImage"] img {
+            max-height: 72vh;
+            object-fit: contain;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.subheader("Eyebrow V-shape")
+    st.markdown("*(Witkower, Khanna, & Rule, in prep)*")
+    st.markdown(
+        "Eyebrow V-shape is calculated from the slopes of the inner eyebrow "
+        "landmarks. FaceMeasure fits a linear model to the the standardized "
+        "landmark coordinates for each eyebrow, reverse-codes the right "
+        "eyebrow slope, and averages the two slopes into a single V-shape "
+        "value. Higher positive values indicate a stronger V-shape pattern."
+    )
+
+    st.image("static/Vshape.png", caption="Eyebrow V-shape", use_container_width=True)
+
+
+dialog_decorator = getattr(st, "dialog", None) or getattr(st, "experimental_dialog", None)
+
+
+def output_dialog(title: str):
+    """Return a dialog decorator, using a wider modal when Streamlit supports it."""
+    try:
+        if "width" in inspect.signature(dialog_decorator).parameters:
+            return dialog_decorator(title, width="large")
+    except (TypeError, ValueError):
+        pass
+    return dialog_decorator(title)
+
+if dialog_decorator:
+    @output_dialog("Understanding the output")
+    def show_output_explainer():
+        render_output_explainer()
+
+    @output_dialog("Additional facial metrics")
+    def show_metrics_explainer():
+        render_metrics_explainer()
+else:
+    def show_output_explainer():
+        st.session_state["show_output_explainer_fallback"] = True
+
+    def show_metrics_explainer():
+        st.session_state["show_metrics_explainer_fallback"] = True
+
+
+# ---------------------------------------------------------------------------
 # Upload form
 # ---------------------------------------------------------------------------
 with st.form("upload_form", clear_on_submit=True, border=False):
@@ -526,6 +629,37 @@ with st.expander("Analysis options", icon=":material/tune:", expanded=False):
             help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
         )
     st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
+
+st.markdown(
+    """
+    <style>
+    div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) button {
+        min-height: 2rem;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+        font-size: 0.85rem;
+        font-style: italic;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+explainer_col1, explainer_col2 = st.columns(2)
+with explainer_col1:
+    if st.button("Landmark explanation", type="secondary", width='stretch'):
+        show_output_explainer()
+with explainer_col2:
+    if st.button("Additional facial metrics", type="secondary", width='stretch'):
+        show_metrics_explainer()
+
+if not dialog_decorator and st.session_state.get("show_output_explainer_fallback"):
+    with st.container(border=True):
+        render_output_explainer()
+
+if not dialog_decorator and st.session_state.get("show_metrics_explainer_fallback"):
+    with st.container(border=True):
+        render_metrics_explainer()
 
 if submitted:
     if not uploaded_images:
