@@ -182,33 +182,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Analysis options — toggles in the main body (not the sidebar)
-# Researchers enable only the analyses they need; everything else is skipped
-# at inference time, which dramatically reduces per-image processing time.
-# ---------------------------------------------------------------------------
-with st.expander("Analysis options", icon=":material/tune:"):
-    opt_col1, opt_col2, opt_col3 = st.columns(3)
-    with opt_col1:
-        detect_aus_flag = st.toggle(
-            "Action Units (AUs)",
-            value=False,
-            help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
-        )
-    with opt_col2:
-        detect_emotions_flag = st.toggle(
-            "Emotions",
-            value=False,
-            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
-        )
-    with opt_col3:
-        detect_pose_flag = st.toggle(
-            "Head Pose",
-            value=False,
-            help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
-        )
-    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
-
-# ---------------------------------------------------------------------------
 # Sidebar — project information and privacy notice
 # ---------------------------------------------------------------------------
 st.sidebar.title(":bust_in_silhouette: facemeasure")
@@ -519,6 +492,40 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
     submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")
+
+# ---------------------------------------------------------------------------
+# Analysis options — toggles in the main body (not the sidebar)
+# Researchers enable only the analyses they need; everything else is skipped
+# at inference time, which dramatically reduces per-image processing time.
+# ---------------------------------------------------------------------------
+with st.expander("Analysis options", icon=":material/tune:", expanded=False):
+    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
+    with opt_col1:
+        st.toggle(
+            "Facial Landmarking",
+            value=True,
+            disabled=True,
+            help="This is a fundamental feature of facemeasure.",
+        )
+    with opt_col2:
+        detect_aus_flag = st.toggle(
+            "Action Units",
+            value=False,
+            help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
+        )
+    with opt_col3:
+        detect_emotions_flag = st.toggle(
+            "Emotions",
+            value=False,
+            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
+        )
+    with opt_col4:
+        detect_pose_flag = st.toggle(
+            "Head Pose",
+            value=False,
+            help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
+        )
+    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
 
 if submitted:
     if not uploaded_images:
