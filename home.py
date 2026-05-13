@@ -29,6 +29,7 @@ import random
 import json
 import time
 import torch
+import inspect
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +68,7 @@ col1, col2, col3 = st.columns([1, 1.618, 1])
 with col2:
     lottie_json = load_lottie_url("https://lottie.host/71c80b64-c8c4-41a8-a469-ad6ba3555abe/RK6dp4pBsY.json")
     if lottie_json:
-        st_lottie(lottie_json)
+        st_lottie(lottie_json, height=120)
 
 # Introductory blurb with a blinking cursor animation
 st.markdown("""
@@ -79,41 +80,107 @@ st.markdown("""
     .blinking-underscore {
         animation: blink 1.5s step-start infinite;
     }
+
+    .block-container {
+        padding-top: 2.25rem;
+        padding-bottom: 2.25rem;
+    }
+
+    .block-container h1 {
+        margin-bottom: 0.15rem;
+        padding-bottom: 0;
+        line-height: 1.2;
+    }
+
+    .block-container h3 {
+        margin-top: 0.4rem;
+        margin-bottom: 0.2rem;
+    }
+
+    [data-testid="stVerticalBlock"] {
+        gap: 0.45rem;
+    }
+
+    [data-testid="stExpander"] {
+        margin-bottom: 0;
+    }
+
+    [data-testid="stExpander"] details {
+        padding-bottom: 0;
+    }
+
+    [data-testid="stExpander"] summary {
+        font-size: 0.78rem;
+        min-height: 1.9rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stVerticalBlock"] {
+        gap: 0.25rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="column"] {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] {
+        min-height: 1.45rem;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] label,
+    [data-testid="stExpander"] [data-testid="stToggle"] p,
+    [data-testid="stExpander"] [data-testid="stCaptionContainer"] {
+        font-size: 0.68rem;
+        line-height: 1.15;
+    }
+
+    [data-testid="stExpander"] [data-testid="stToggle"] [role="switch"] {
+        transform: scale(0.78);
+        transform-origin: left center;
+    }
+
+    [data-testid="stForm"] {
+        border: 0;
+        padding: 0;
+    }
+
+    [data-testid="stDataFrame"] {
+        max-height: 24vh;
+        overflow: auto;
+    }
+
+    [data-testid="stImage"] img {
+        max-height: 24vh;
+        object-fit: contain;
+    }
+
+    .legal-footer {
+        position: fixed;
+        right: 1rem;
+        bottom: 0.45rem;
+        left: 1rem;
+        z-index: 999;
+        color: #5f6b73;
+        font-size: 0.68rem;
+        line-height: 1.25;
+        text-align: center;
+    }
+
+    .legal-footer a {
+        color: #3d5968;
+        text-decoration: none;
+    }
+
+    .legal-footer a:hover {
+        text-decoration: underline;
+    }
     </style>
-    <p style='text-align: left; font-size: 18px;'>
-        <b>facemeasure</b> democratizes facial analysis by allowing researchers
-        to obtain precise facial metrics instantly without relying on expensive
-        software or programming skills. Upload one or more facial image(s) to
-        get started<b><span class="blinking-underscore">_</span></b>
+    <p style='text-align: left; font-size: 16px; line-height: 1.35; margin: 0 0 1.1rem 0;'>
+        <b>FaceMeasure</b> democratizes facial analysis by enabling researchers
+        to instantly extract precise facial metrics—no expensive software or
+        programming required. Upload one or more facial images to begin<b><span class="blinking-underscore">_</span></b>
     </p>
     """, unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# Analysis options — toggles in the main body (not the sidebar)
-# Researchers enable only the analyses they need; everything else is skipped
-# at inference time, which dramatically reduces per-image processing time.
-# ---------------------------------------------------------------------------
-with st.expander("Analysis options", icon=":material/tune:"):
-    opt_col1, opt_col2, opt_col3 = st.columns(3)
-    with opt_col1:
-        detect_aus_flag = st.toggle(
-            "Action Units (AUs)",
-            value=False,
-            help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
-        )
-    with opt_col2:
-        detect_emotions_flag = st.toggle(
-            "Emotions",
-            value=False,
-            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
-        )
-    with opt_col3:
-        detect_pose_flag = st.toggle(
-            "Head Pose",
-            value=False,
-            help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
-        )
-    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
 
 # ---------------------------------------------------------------------------
 # Sidebar — project information and privacy notice
@@ -130,6 +197,17 @@ st.sidebar.markdown("""
     <p>🌱 Supported by the Social and Behavioural Data Science Centre, University of Amsterdam</p>
     <p>🙈 No identifiable data is stored. Everything is cleared once you refresh this page or download results.</p>
     <p>🐧 Our open-source code base is available on <a href="https://github.com/saurabh-khanna/facemeasure" target="_blank">GitHub</a>.</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="legal-footer">
+    For more information contact Zak Witkower
+    (<a href="mailto:zakwitkower@gmail.com">zakwitkower@gmail.com</a>;
+    <a href="https://zakwitkower.com" target="_blank">zakwitkower.com</a>)
+    or Saurabh Khanna
+    (<a href="mailto:s.khanna@uva.nl">s.khanna@uva.nl</a>;
+    <a href="https://saurabh-khanna.github.io/" target="_blank">saurabh-khanna.github.io</a>).
 </div>
 """, unsafe_allow_html=True)
 
@@ -410,11 +488,178 @@ def draw_landmarks_on_image(image: Image.Image, landmarks_data: dict) -> Image.I
 
 
 # ---------------------------------------------------------------------------
+# Output explanation dialog
+# ---------------------------------------------------------------------------
+
+def render_output_explainer():
+    """Render a short guide to the landmark output."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDialog"] div[role="dialog"] {
+            width: min(96vw, 1280px);
+            max-width: min(96vw, 1280px);
+        }
+
+        div[data-testid="stDialog"] div[role="dialog"] [data-testid="stVerticalBlock"] {
+            gap: 0.45rem;
+        }
+
+        div[data-testid="stDialog"] [data-testid="stImage"] img {
+            max-height: 72vh;
+            object-fit: contain;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "FaceMeasure identifies 68 standard facial landmarks (using "
+        "MobileFaceNet) for each detected face (identified using RetinaFace), "
+        "and returns the X- and Y-coordinate for each landmark."
+    )
+
+    original_col, landmarks_col = st.columns(2)
+    with original_col:
+        st.image("static/1_original.png", caption="Original image", use_container_width=True)
+    with landmarks_col:
+        st.image("static/5_landmarksClose.jpeg", caption="Facial landmarks", use_container_width=True)
+
+
+def render_metrics_explainer():
+    """Render a short guide to additional derived facial metrics."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDialog"] div[role="dialog"] {
+            width: min(96vw, 1280px);
+            max-width: min(96vw, 1280px);
+        }
+
+        div[data-testid="stDialog"] div[role="dialog"] [data-testid="stVerticalBlock"] {
+            gap: 0.45rem;
+        }
+
+        div[data-testid="stDialog"] [data-testid="stImage"] img {
+            max-height: 72vh;
+            object-fit: contain;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.subheader("Eyebrow V-shape")
+    st.markdown("*(Witkower, Khanna, & Rule, in prep)*")
+    st.markdown(
+        "Eyebrow V-shape is calculated from the slopes of the inner eyebrow "
+        "landmarks. FaceMeasure fits a linear model to the the standardized "
+        "landmark coordinates for each eyebrow, reverse-codes the right "
+        "eyebrow slope, and averages the two slopes into a single V-shape "
+        "value. Higher positive values indicate a stronger V-shape pattern."
+    )
+
+    st.image("static/Vshape.png", caption="Eyebrow V-shape", use_container_width=True)
+
+
+dialog_decorator = getattr(st, "dialog", None) or getattr(st, "experimental_dialog", None)
+
+
+def output_dialog(title: str):
+    """Return a dialog decorator, using a wider modal when Streamlit supports it."""
+    try:
+        if "width" in inspect.signature(dialog_decorator).parameters:
+            return dialog_decorator(title, width="large")
+    except (TypeError, ValueError):
+        pass
+    return dialog_decorator(title)
+
+if dialog_decorator:
+    @output_dialog("Understanding the output")
+    def show_output_explainer():
+        render_output_explainer()
+
+    @output_dialog("Additional facial metrics")
+    def show_metrics_explainer():
+        render_metrics_explainer()
+else:
+    def show_output_explainer():
+        st.session_state["show_output_explainer_fallback"] = True
+
+    def show_metrics_explainer():
+        st.session_state["show_metrics_explainer_fallback"] = True
+
+
+# ---------------------------------------------------------------------------
 # Upload form
 # ---------------------------------------------------------------------------
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
     submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")
+
+# ---------------------------------------------------------------------------
+# Analysis options — toggles in the main body (not the sidebar)
+# Researchers enable only the analyses they need; everything else is skipped
+# at inference time, which dramatically reduces per-image processing time.
+# ---------------------------------------------------------------------------
+with st.expander("Analysis options", icon=":material/tune:", expanded=False):
+    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
+    with opt_col1:
+        st.toggle(
+            "Facial Landmarking",
+            value=True,
+            disabled=True,
+            help="This is a fundamental feature of facemeasure.",
+        )
+    with opt_col2:
+        detect_aus_flag = st.toggle(
+            "Action Units",
+            value=False,
+            help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
+        )
+    with opt_col3:
+        detect_emotions_flag = st.toggle(
+            "Emotions",
+            value=False,
+            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
+        )
+    with opt_col4:
+        detect_pose_flag = st.toggle(
+            "Head Pose",
+            value=False,
+            help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
+        )
+    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
+
+st.markdown(
+    """
+    <style>
+    div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) button {
+        min-height: 2rem;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+        font-size: 0.85rem;
+        font-style: italic;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+explainer_col1, explainer_col2 = st.columns(2)
+with explainer_col1:
+    if st.button("Landmark explanation", type="secondary", width='stretch'):
+        show_output_explainer()
+with explainer_col2:
+    if st.button("Additional facial metrics", type="secondary", width='stretch'):
+        show_metrics_explainer()
+
+if not dialog_decorator and st.session_state.get("show_output_explainer_fallback"):
+    with st.container(border=True):
+        render_output_explainer()
+
+if not dialog_decorator and st.session_state.get("show_metrics_explainer_fallback"):
+    with st.container(border=True):
+        render_metrics_explainer()
 
 if submitted:
     if not uploaded_images:
