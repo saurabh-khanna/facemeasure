@@ -716,9 +716,9 @@ with st.expander("Analysis options", icon=":material/tune:", expanded=False):
         )
     with landmark_col2:
         use_procrustes_rotation_flag = st.toggle(
-            "Use Procrustes rotation (standardize landmarks)",
+            "Use Procrustes rotation (standardizes landmarks to eliminate effects of positioning and scale)",
             value=True,
-            help="Standardize landmark coordinates by centering, scaling, and rotating them to a common Procrustes shape for cross-target comparisons.",
+            help="Center, scale, and rotate landmark coordinates to a common Procrustes shape for cross-target comparisons.",
         )
 
     st.markdown("**Additional output options**")
