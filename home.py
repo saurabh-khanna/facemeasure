@@ -39,7 +39,10 @@ import inspect
 @st.cache_data(show_spinner=False)
 def load_lottie_url(url: str):
     """Fetch a Lottie animation JSON from *url*, cached across reruns."""
-    r = requests.get(url)
+    try:
+        r = requests.get(url, timeout=5)
+    except requests.RequestException:
+        return None
     if r.status_code != 200:
         return None
     return r.json()
@@ -229,6 +232,32 @@ st.markdown("""
 @st.cache_resource(show_spinner="Loading face detection models...")
 def load_detector():
     """Initialise and return a cached py-feat Detector instance."""
+    # py-feat 0.6.x imports nltools, which still expects SciPy's old
+    # binom_test helper. Modern SciPy exposes the same behavior as binomtest.
+    try:
+        import scipy.stats as scipy_stats
+        if not hasattr(scipy_stats, "binom_test") and hasattr(scipy_stats, "binomtest"):
+            def _binom_test(x, n=None, p=0.5, alternative="two-sided"):
+                return scipy_stats.binomtest(x, n=n, p=p, alternative=alternative).pvalue
+            scipy_stats.binom_test = _binom_test
+
+        import scipy.integrate as scipy_integrate
+        if not hasattr(scipy_integrate, "simps") and hasattr(scipy_integrate, "simpson"):
+            def _simps(y, x=None, dx=1.0, axis=-1, even=None):
+                return scipy_integrate.simpson(y, x=x, dx=dx, axis=axis)
+            scipy_integrate.simps = _simps
+    except Exception:
+        pass
+
+    try:
+        import torchvision.io as torchvision_io
+        if not hasattr(torchvision_io, "read_video"):
+            def _read_video_unavailable(*args, **kwargs):
+                raise RuntimeError("Video input is unavailable in this local torchvision build.")
+            torchvision_io.read_video = _read_video_unavailable
+    except Exception:
+        pass
+
     from feat import Detector
     return Detector(
         face_model='retinaface',
@@ -341,6 +370,81 @@ def calculate_fwhr(landmarks_dict):
     return width / height if height != 0 else 0
 
 
+def procrustes_align_landmark_arrays(landmark_arrays, max_iterations=10, tolerance=1e-7):
+    """Align 68-point landmark arrays with Generalized Procrustes Analysis.
+
+    The returned coordinates are centered, scaled to unit Frobenius norm, and
+    rotated to a common mean shape. Reflections are not allowed, preserving the
+    left/right orientation of each face.
+    """
+    if len(landmark_arrays) == 0:
+        return []
+
+    shapes = []
+    for landmarks in landmark_arrays:
+        pts = np.asarray(landmarks, dtype=float)
+        if pts.shape != (68, 2) or not np.isfinite(pts).all():
+            raise ValueError("Each landmark array must have shape (68, 2) and finite values.")
+
+        pts = pts - np.mean(pts, axis=0)
+        scale = np.linalg.norm(pts)
+        if scale == 0:
+            raise ValueError("Cannot Procrustes-align landmarks with zero spread.")
+        shapes.append(pts / scale)
+
+    reference = shapes[0]
+    aligned = shapes
+    for _ in range(max_iterations):
+        aligned = []
+        for pts in shapes:
+            u, _, vt = np.linalg.svd(pts.T @ reference)
+            rotation = u @ vt
+            if np.linalg.det(rotation) < 0:
+                u[:, -1] *= -1
+                rotation = u @ vt
+            aligned.append(pts @ rotation)
+
+        new_reference = np.mean(aligned, axis=0)
+        new_reference = new_reference - np.mean(new_reference, axis=0)
+        ref_scale = np.linalg.norm(new_reference)
+        if ref_scale == 0:
+            break
+        new_reference = new_reference / ref_scale
+
+        if np.linalg.norm(new_reference - reference) < tolerance:
+            reference = new_reference
+            break
+        reference = new_reference
+
+    return aligned
+
+
+def landmark_array_to_result(landmarks, result):
+    """Write a (68, 2) landmark array into a result dict as LM_* columns."""
+    for i in range(68):
+        result[f"LM_{i}_X"] = round(float(landmarks[i, 0]), 4)
+        result[f"LM_{i}_Y"] = round(float(landmarks[i, 1]), 4)
+
+
+def apply_procrustes_to_results(results):
+    """Replace valid result landmark columns with batch Procrustes coordinates."""
+    valid_results = [r for r in results if "Error" not in r and "_Raw_Landmarks" in r]
+    if not valid_results:
+        return
+
+    raw_landmarks = [np.asarray(r["_Raw_Landmarks"], dtype=float) for r in valid_results]
+    aligned_landmarks = procrustes_align_landmark_arrays(raw_landmarks)
+
+    for result, landmarks in zip(valid_results, aligned_landmarks):
+        landmark_array_to_result(landmarks, result)
+        try:
+            result["Eyebrow_V"] = round(calculate_eyebrow_v_shape(result), 4)
+            result["fWHR"] = round(calculate_fwhr(result), 4)
+        except Exception:
+            result["Eyebrow_V"] = None
+            result["fWHR"] = None
+
+
 # ---------------------------------------------------------------------------
 # Core analysis pipeline
 # ---------------------------------------------------------------------------
@@ -383,9 +487,8 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     lm = np.array(landmarks[0][0])  # shape (68, 2)
 
     # Store landmark coordinates
-    for i in range(68):
-        result[f"LM_{i}_X"] = round(float(lm[i, 0]), 4)
-        result[f"LM_{i}_Y"] = round(float(lm[i, 1]), 4)
+    result["_Raw_Landmarks"] = lm.tolist()
+    landmark_array_to_result(lm, result)
 
     # Always: compute derived metrics from landmarks (fast - pure math)
     try:
@@ -602,33 +705,43 @@ with st.form("upload_form", clear_on_submit=True, border=False):
 # at inference time, which dramatically reduces per-image processing time.
 # ---------------------------------------------------------------------------
 with st.expander("Analysis options", icon=":material/tune:", expanded=False):
-    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
-    with opt_col1:
+    st.markdown("**Landmark options**")
+    landmark_col1, landmark_col2 = st.columns(2)
+    with landmark_col1:
         st.toggle(
             "Facial Landmarking",
             value=True,
             disabled=True,
             help="This is a fundamental feature of facemeasure.",
         )
-    with opt_col2:
+    with landmark_col2:
+        use_procrustes_rotation_flag = st.toggle(
+            "Use Procrustes rotation (standardize landmarks)",
+            value=True,
+            help="Standardize landmark coordinates by centering, scaling, and rotating them to a common Procrustes shape for cross-target comparisons.",
+        )
+
+    st.markdown("**Additional output options**")
+    output_col1, output_col2, output_col3 = st.columns(3)
+    with output_col1:
         detect_aus_flag = st.toggle(
             "Action Units",
             value=False,
             help="Detect 20 facial action units (AU01–AU43). Adds ~2–5 s per image.",
         )
-    with opt_col3:
+    with output_col2:
         detect_emotions_flag = st.toggle(
             "Emotions",
             value=False,
-            help="Detect 7 basic emotions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
+            help="Estimate intensity of basic emotion expressions (anger, disgust, fear, happiness, sadness, surprise, neutral).",
         )
-    with opt_col4:
+    with output_col3:
         detect_pose_flag = st.toggle(
             "Head Pose",
             value=False,
             help="Estimate head orientation (pitch, roll, yaw). Adds ~1–2 s per image.",
         )
-    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Each additional feature adds processing time per image.")
+    st.caption("Landmarks, fWHR, and eyebrow V-shape are always computed. Procrustes standardization is used by default for comparable landmark coordinates. Each additional feature adds processing time per image.")
 
 st.markdown(
     """
@@ -692,13 +805,20 @@ if submitted:
                 results.append(data)
                 progress_bar.progress((idx + 1) / total_images)
 
+            if use_procrustes_rotation_flag:
+                apply_procrustes_to_results(results)
+
         except Exception as e:
             st.error(f"Analysis failed: {e}")
             results = [{"Error": str(e), "Image_Name": img.name} for img in uploaded_images]
 
         elapsed = time.time() - start_time
         progress_bar.empty()
-        df = pd.DataFrame(results)
+        export_results = [
+            {k: v for k, v in row.items() if not k.startswith("_")}
+            for row in results
+        ]
+        df = pd.DataFrame(export_results)
 
         # Reorder columns: most useful first, raw landmarks last
         present = set(df.columns)
@@ -720,6 +840,8 @@ if submitted:
             feat_list.append("Emotions")
         if detect_pose_flag:
             feat_list.append("Head Pose")
+        if use_procrustes_rotation_flag:
+            feat_list.append("Procrustes-aligned landmarks")
 
         # Display results
         st.write("&nbsp;")
@@ -746,7 +868,7 @@ if submitted:
                 type="primary")  
 
             # Provide download button for JSON
-            json_data = json.dumps(results, indent=2)
+            json_data = json.dumps(export_results, indent=2)
             json_filename = f"facemeasure_{timestamp}.json"
             col_b.download_button(
                 "Download results as JSON",
@@ -775,7 +897,15 @@ if submitted:
                             # Draw landmarks on grayscale image
                             pil_gray = ImageOps.grayscale(pil_img)
                             pil_gray_rgb = pil_gray.convert("RGB")  # So landmarks appear in color
-                            img_with_landmarks = draw_landmarks_on_image(pil_gray_rgb, chosen_result)
+                            raw_landmarks = chosen_result.get("_Raw_Landmarks")
+                            if raw_landmarks:
+                                landmark_overlay = {}
+                                for i, (x, y) in enumerate(raw_landmarks):
+                                    landmark_overlay[f"LM_{i}_X"] = x
+                                    landmark_overlay[f"LM_{i}_Y"] = y
+                            else:
+                                landmark_overlay = chosen_result
+                            img_with_landmarks = draw_landmarks_on_image(pil_gray_rgb, landmark_overlay)
                             
                             # Show side by side using Streamlit columns
                             col_c, col_d = st.columns(2)
