@@ -19,6 +19,8 @@ from PIL import Image
 from home import (
     calculate_fwhr,
     calculate_eyebrow_v_shape,
+    procrustes_align_landmark_arrays,
+    apply_procrustes_to_results,
     draw_landmarks_on_image,
     analyze_image,
     AU_COLUMNS,
@@ -149,6 +151,42 @@ class TestEyebrowVShape:
 
 
 # ---------------------------------------------------------------------------
+# Tests — Procrustes landmark alignment
+# ---------------------------------------------------------------------------
+
+class TestProcrustesAlignment:
+    """Tests for Generalized Procrustes alignment of landmark arrays."""
+
+    def test_removes_translation_scale_and_rotation(self):
+        pts = _default_landmarks()
+        theta = np.deg2rad(25)
+        rotation = np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)],
+        ])
+        transformed = (pts @ rotation) * 2.5 + np.array([120.0, -40.0])
+
+        aligned_a, aligned_b = procrustes_align_landmark_arrays([pts, transformed])
+
+        assert np.allclose(np.mean(aligned_a, axis=0), [0.0, 0.0], atol=1e-8)
+        assert np.allclose(np.mean(aligned_b, axis=0), [0.0, 0.0], atol=1e-8)
+        assert pytest.approx(np.linalg.norm(aligned_a), rel=1e-8) == 1.0
+        assert pytest.approx(np.linalg.norm(aligned_b), rel=1e-8) == 1.0
+        assert np.allclose(aligned_a, aligned_b, atol=1e-6)
+
+    def test_apply_procrustes_replaces_exported_landmarks(self):
+        pts = _default_landmarks()
+        result = _make_landmark_dict(pts)
+        result["_Raw_Landmarks"] = pts.tolist()
+
+        apply_procrustes_to_results([result])
+
+        aligned = np.array([[result[f"LM_{i}_X"], result[f"LM_{i}_Y"]] for i in range(68)])
+        assert np.allclose(np.mean(aligned, axis=0), [0.0, 0.0], atol=1e-4)
+        assert pytest.approx(np.linalg.norm(aligned), rel=1e-3) == 1.0
+
+
+# ---------------------------------------------------------------------------
 # Tests — Landmark visualisation
 # ---------------------------------------------------------------------------
 
@@ -226,6 +264,7 @@ class TestAnalyzeImage:
         result = analyze_image(det, self._make_img())
         assert "LM_0_X" in result
         assert "LM_67_Y" in result
+        assert "_Raw_Landmarks" in result
         assert "fWHR" in result
         assert "Eyebrow_V" in result
         assert "Error" not in result
