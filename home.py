@@ -223,12 +223,78 @@ st.markdown("""
 # individual detect_* methods instead of the monolithic detect_image().
 #
 # Model choices:
-#   face_model      = 'retinaface'     (small CNN, 1.7 MB)
+#   face_model      = dlib HOG         (adapter around dlib's frontal detector)
 #   landmark_model  = 'mobilefacenet'   (12 MB, batch-safe)
 #   au_model        = 'xgb'            (returns AU probabilities)
 #   emotion_model   = 'svm'            (fast; avoids 529 MB resmasknet)
 #   facepose_model  = 'img2pose'       (Euler angles: pitch, roll, yaw)
 # ---------------------------------------------------------------------------
+DLIB_HOG_CONFIDENCE = 1.0
+DLIB_HOG_MARGIN_THRESHOLD = 0.0
+
+
+class DlibHogPyFeatAdapter:
+    """Use dlib HOG face boxes with py-feat's downstream analysis methods."""
+
+    def __init__(
+        self,
+        pyfeat_detector,
+        upsample_num_times=1,
+        margin_threshold=DLIB_HOG_MARGIN_THRESHOLD,
+    ):
+        import dlib
+
+        self.pyfeat_detector = pyfeat_detector
+        self.dlib_detector = dlib.get_frontal_face_detector()
+        self.upsample_num_times = upsample_num_times
+        self.margin_threshold = margin_threshold
+        self.info = dict(getattr(pyfeat_detector, "info", {}))
+        self.info["face_model"] = "dlib_hog"
+
+    def detect_faces(self, frame, threshold=0.5, **_face_model_kwargs):
+        arr = np.asarray(frame)
+        if arr.ndim == 3:
+            frames = [arr]
+        elif arr.ndim == 4:
+            frames = list(arr)
+        else:
+            raise ValueError("Expected a single image (H, W, C) or batch (N, H, W, C).")
+
+        all_faces = []
+        for image in frames:
+            rects, scores, _ = self.dlib_detector.run(
+                image,
+                self.upsample_num_times,
+                self.margin_threshold,
+            )
+            image_faces = []
+            height, width = image.shape[:2]
+            for rect, _score in zip(rects, scores):
+                left = float(max(0, rect.left()))
+                top = float(max(0, rect.top()))
+                right = float(min(width - 1, rect.right()))
+                bottom = float(min(height - 1, rect.bottom()))
+                confidence = DLIB_HOG_CONFIDENCE
+                if confidence < threshold:
+                    continue
+                image_faces.append([left, top, right, bottom, confidence])
+            all_faces.append(image_faces)
+
+        return all_faces
+
+    def detect_landmarks(self, *args, **kwargs):
+        return self.pyfeat_detector.detect_landmarks(*args, **kwargs)
+
+    def detect_aus(self, *args, **kwargs):
+        return self.pyfeat_detector.detect_aus(*args, **kwargs)
+
+    def detect_emotions(self, *args, **kwargs):
+        return self.pyfeat_detector.detect_emotions(*args, **kwargs)
+
+    def detect_facepose(self, *args, **kwargs):
+        return self.pyfeat_detector.detect_facepose(*args, **kwargs)
+
+
 @st.cache_resource(show_spinner="Loading face detection models...")
 def load_detector():
     """Initialise and return a cached py-feat Detector instance."""
@@ -259,7 +325,9 @@ def load_detector():
         pass
 
     from feat import Detector
-    return Detector(
+    # py-feat requires a supported face_model name to initialize downstream
+    # landmark/AU/emotion/pose models; the adapter overrides detect_faces().
+    pyfeat_detector = Detector(
         face_model='retinaface',
         landmark_model='mobilefacenet',
         au_model='xgb',
@@ -267,6 +335,7 @@ def load_detector():
         facepose_model='img2pose',
         device='cpu',
     )
+    return DlibHogPyFeatAdapter(pyfeat_detector)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -300,6 +369,7 @@ _LANDMARK_GROUPS = [
     list(range(60, 68)),     # 8  Inner lip
 ]
 _CLOSED_GROUPS = {4, 5, 6, 7, 8}  # lower nose + eyes + lips are closed loops
+MIN_FACE_CONFIDENCE = 0.99
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +496,56 @@ def landmark_array_to_result(landmarks, result):
         result[f"LM_{i}_Y"] = round(float(landmarks[i, 1]), 4)
 
 
+def face_box_area(face):
+    """Return the area of a detected face box."""
+    box = np.asarray(face, dtype=float).ravel()
+    if box.size < 4:
+        return 0.0
+    width = max(0.0, box[2] - box[0])
+    height = max(0.0, box[3] - box[1])
+    return width * height
+
+
+def face_confidence(face):
+    """Return detector confidence when available."""
+    box = np.asarray(face, dtype=float).ravel()
+    return float(box[4]) if box.size >= 5 else 1.0
+
+
+def is_right_side_up(landmarks):
+    """Use landmarks to reject upside-down face detections."""
+    pts = np.asarray(landmarks, dtype=float)
+    if pts.shape != (68, 2) or not np.isfinite(pts).all():
+        return False
+
+    eye_center_y = np.mean(pts[[36, 39, 42, 45], 1])
+    mouth_center_y = np.mean(pts[[48, 54, 51, 57], 1])
+    nose_y = pts[33, 1]
+
+    return eye_center_y < nose_y < mouth_center_y
+
+
+def select_face_for_analysis(
+    faces_for_image,
+    landmarks_for_image,
+    min_confidence=MIN_FACE_CONFIDENCE,
+):
+    """Select the largest right-side-up face above the confidence threshold."""
+    candidates = []
+    for face, landmarks in zip(faces_for_image, landmarks_for_image):
+        if face_confidence(face) < min_confidence:
+            continue
+        if not is_right_side_up(landmarks):
+            continue
+        candidates.append((face_box_area(face), face, landmarks))
+
+    if not candidates:
+        return None, None
+
+    _, selected_face, selected_landmarks = max(candidates, key=lambda item: item[0])
+    return selected_face, selected_landmarks
+
+
 def apply_procrustes_to_results(results):
     """Replace valid result landmark columns with batch Procrustes coordinates."""
     valid_results = [r for r in results if "Error" not in r and "_Raw_Landmarks" in r]
@@ -483,8 +603,13 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     if not landmarks or not landmarks[0]:
         return {"Error": "Landmark detection failed"}
 
-    # Take the first detected face
-    lm = np.array(landmarks[0][0])  # shape (68, 2)
+    selected_face, selected_landmarks = select_face_for_analysis(faces[0], landmarks[0])
+    if selected_face is None:
+        return {"Error": "No upright face detected"}
+
+    selected_faces = [[selected_face]]
+    selected_landmarks_list = [[selected_landmarks]]
+    lm = np.array(selected_landmarks)  # shape (68, 2)
 
     # Store landmark coordinates
     result["_Raw_Landmarks"] = lm.tolist()
@@ -501,7 +626,7 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     # --- Optional: Action Units (HOG extraction + XGB - slowest step) ---
     if detect_aus:
         try:
-            aus = detector.detect_aus(img_array, landmarks)
+            aus = detector.detect_aus(img_array, selected_landmarks_list)
             if aus is not None and len(aus) > 0:
                 au_frame = np.array(aus[0])
                 au_vals = au_frame[0] if au_frame.ndim == 2 else au_frame
@@ -513,7 +638,7 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     # --- Optional: Emotions ---
     if detect_emotions:
         try:
-            emotions = detector.detect_emotions(img_array, faces, landmarks)
+            emotions = detector.detect_emotions(img_array, selected_faces, selected_landmarks_list)
             if emotions is not None and len(emotions) > 0:
                 emo_frame = np.array(emotions[0])
                 emo_vals = emo_frame[0] if emo_frame.ndim == 2 else emo_frame
@@ -525,7 +650,7 @@ def analyze_image(detector, img_array, detect_aus=False, detect_emotions=False, 
     # --- Optional: Head Pose (img2pose - runs its own face detection internally) ---
     if detect_pose:
         try:
-            poses_dict = detector.detect_facepose(img_array, landmarks)
+            poses_dict = detector.detect_facepose(img_array, selected_landmarks_list)
             poses = poses_dict.get("poses", [])
             if poses and poses[0]:
                 p = np.array(poses[0][0])
@@ -618,7 +743,7 @@ def render_output_explainer():
     )
     st.markdown(
         "FaceMeasure identifies 68 standard facial landmarks (using "
-        "MobileFaceNet) for each detected face (identified using RetinaFace), "
+        "MobileFaceNet) for each detected face (identified using dlib HOG), "
         "and returns the X- and Y-coordinate for each landmark."
     )
 
