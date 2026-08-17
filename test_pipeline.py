@@ -54,7 +54,17 @@ def _default_landmarks():
     pts[0] = [50, 150]     # left jawline
     pts[16] = [200, 150]   # right jawline  → width = 150
     pts[27] = [128, 80]    # nasion (top of nose bridge)
+    pts[33] = [128, 130]   # nose tip, below eyes and above mouth
     pts[51] = [128, 170]   # upper lip      → height = 90  → fWHR ≈ 1.667
+
+    # Eyes and mouth landmarks used by the upright-face selector
+    pts[36] = [88, 105]
+    pts[39] = [112, 105]
+    pts[42] = [144, 105]
+    pts[45] = [168, 105]
+    pts[48] = [96, 170]
+    pts[54] = [160, 170]
+    pts[57] = [128, 188]
 
     # Eyebrows: left (18-21) slopes up inward, right (22-25) mirrors
     pts[18] = [70, 90]
@@ -226,19 +236,27 @@ class TestDrawLandmarks:
 class _MockDetector:
     """Minimal mock of py-feat Detector for unit testing."""
 
-    def __init__(self, return_faces=True, return_landmarks=True):
+    def __init__(self, return_faces=True, return_landmarks=True, faces=None, landmarks=None):
         self._return_faces = return_faces
         self._return_landmarks = return_landmarks
+        self._faces = faces
+        self._landmarks = landmarks
 
     def detect_faces(self, img_array):
         if not self._return_faces:
             return [[]]
+        if callable(self._faces):
+            return [self._faces(img_array)]
+        if self._faces is not None:
+            return [self._faces]
         # Return one bounding box [x1, y1, x2, y2, confidence]
         return [[[10, 10, 200, 200, 0.99]]]
 
     def detect_landmarks(self, img_array, detected_faces=None):
         if not self._return_landmarks:
             return [[]]
+        if self._landmarks is not None:
+            return [[np.asarray(landmarks).tolist() for landmarks in self._landmarks]]
         pts = _default_landmarks()
         return [[pts.tolist()]]
 
@@ -278,6 +296,38 @@ class TestAnalyzeImage:
         det = _MockDetector(return_landmarks=False)
         result = analyze_image(det, self._make_img())
         assert "Error" in result
+
+    def test_low_confidence_face_returns_error(self):
+        det = _MockDetector(faces=[[10, 10, 200, 200, 0.98]])
+        result = analyze_image(det, self._make_img())
+        assert "Error" in result
+
+    def test_selects_largest_upright_high_confidence_face(self):
+        small_face_landmarks = _default_landmarks()
+        large_face_landmarks = _default_landmarks() + np.array([30.0, 0.0])
+        upside_down_landmarks = _default_landmarks().copy()
+        upside_down_landmarks[:, 1] = 256 - upside_down_landmarks[:, 1]
+        low_confidence_landmarks = _default_landmarks() + np.array([60.0, 0.0])
+
+        det = _MockDetector(
+            faces=[
+                [10, 10, 230, 230, 0.995],  # largest, but upside down
+                [20, 20, 110, 110, 0.99],  # upright, high confidence, smaller
+                [30, 30, 190, 190, 0.999],  # upright, high confidence, largest valid
+                [0, 0, 250, 250, 0.98],  # largest box, but below confidence cutoff
+            ],
+            landmarks=[
+                upside_down_landmarks,
+                small_face_landmarks,
+                large_face_landmarks,
+                low_confidence_landmarks,
+            ],
+        )
+
+        result = analyze_image(det, self._make_img())
+
+        assert "Error" not in result
+        assert result["LM_0_X"] == pytest.approx(80.0)
 
     def test_aus_flag(self):
         det = _MockDetector()
