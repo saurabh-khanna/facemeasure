@@ -1,8 +1,8 @@
-numpy>=1.23.5,<2.0.0
-pandas>=2.0.0,<3.0.0
-Pillow>=10.0.0,<12.0.0
-dlib-bin>=20.0.1,<21.0.0; platform_system == "Darwin" and platform_machine == "arm64"
-dlib>=19.24.0,<20.0.0; platform_system != "Darwin" or platform_machine != "arm64"
-py-feat>=0.6.0,<0.7.0
-streamlit>=1.30.0,<2.0.0
-streamlit-lottie>=0.0.5,<1.0.0
+numpy
+pandas
+Pillow
+dlib-bin
+dlib
+py-feat
+streamlit
+streamlit-lottie
