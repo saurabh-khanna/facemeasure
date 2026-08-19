@@ -199,20 +199,11 @@ st.sidebar.markdown("""
 ">
     <p>🌱 Supported by the Social and Behavioural Data Science Centre, University of Amsterdam</p>
     <p>🙈 No identifiable data is stored. Everything is cleared once you refresh this page or download results.</p>
-    <p>🐧 Our open-source code base is available on <a href="https://github.com/saurabh-khanna/facemeasure" target="_blank">GitHub</a>.</p>
+    <p>🐧 Our open-source code base is available on <a href="https://github.com/saurabh-khanna/facemeasure" target="_blank">GitHub</a>. For more information, contact <a href="https://zakwitkower.com" target="_blank">Zak Witkower</a>
+    or <a href="https://saurabh-khanna.github.io/" target="_blank">Saurabh Khanna</a>.</p>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="legal-footer">
-    For more information contact Zak Witkower
-    (<a href="mailto:zakwitkower@gmail.com">zakwitkower@gmail.com</a>;
-    <a href="https://zakwitkower.com" target="_blank">zakwitkower.com</a>)
-    or Saurabh Khanna
-    (<a href="mailto:s.khanna@uva.nl">s.khanna@uva.nl</a>;
-    <a href="https://saurabh-khanna.github.io/" target="_blank">saurabh-khanna.github.io</a>).
-</div>
-""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Model loading — cached across Streamlit reruns via @st.cache_resource
@@ -822,6 +813,7 @@ else:
 # ---------------------------------------------------------------------------
 with st.form("upload_form", clear_on_submit=True, border=False):
     uploaded_images = st.file_uploader(label = "Upload file(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, label_visibility="hidden")
+    st.markdown("<br/>", unsafe_allow_html=True)
     submitted = st.form_submit_button("Analyze image(s)", width='stretch', type="primary")
 
 # ---------------------------------------------------------------------------
