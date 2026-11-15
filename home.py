@@ -779,9 +779,12 @@ def render_output_explainer():
         unsafe_allow_html=True,
     )
     st.markdown(
-        "FaceMeasure identifies 68 standard facial landmarks (using "
-        "MobileFaceNet) for each detected face (identified using dlib HOG), "
-        "and returns the X- and Y-coordinate for each landmark."
+        "FaceMeasure detects faces using dlib’s histogram-of-oriented-gradients "
+        "(HOG) detector (Dalal & Triggs, 2005), and extracts 68 facial "
+        "landmarks (in iBUG 300-W configuration) for each face using "
+        "MobileFaceNet (Chen et al., 2018) as implemented in Py-Feat "
+        "(Cheong et al., 2023). Each landmark returns as an (x, y) coordinate "
+        "in two-dimensional space (see below)."
     )
 
     original_col, landmarks_col = st.columns(2)
@@ -813,17 +816,59 @@ def render_metrics_explainer():
         """,
         unsafe_allow_html=True,
     )
-    st.subheader("Eyebrow V-shape")
-    st.markdown("*(Witkower, Khanna, & Rule, in prep)*")
-    st.markdown(
-        "Eyebrow V-shape is calculated from the slopes of the inner eyebrow "
-        "landmarks. FaceMeasure fits a linear model to the the standardized "
-        "landmark coordinates for each eyebrow, reverse-codes the right "
-        "eyebrow slope, and averages the two slopes into a single V-shape "
-        "value. Higher positive values indicate a stronger V-shape pattern."
-    )
+    nav_col, content_col = st.columns([0.22, 0.78], gap="medium")
+    with nav_col:
+        st.markdown(
+            """
+            <div style="background:#DAE1E5; padding:0.8rem; border-radius:0.5rem;">
+                <strong>On this page</strong>
+                <p style="margin:0.65rem 0 0.25rem 0;"><a href="#eyebrow-v-shape">Eyebrow V-shape</a></p>
+                <p style="margin:0.25rem 0;"><a href="#canthal-tilt">Canthal tilt</a></p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.image("static/Vshape.png", caption="Eyebrow V-shape", use_container_width=True)
+    with content_col:
+        st.markdown('<div id="eyebrow-v-shape"></div>', unsafe_allow_html=True)
+        st.subheader("Eyebrow V-shape")
+        st.markdown("*(Witkower, Khanna, & Rule, in prep)*")
+        st.markdown(
+            "Eyebrow V-shape is calculated from the slopes of the inner eyebrow "
+            "landmarks. FaceMeasure fits a linear model to the the standardized "
+            "landmark coordinates for each eyebrow, reverse-codes the right "
+            "eyebrow slope, and averages the two slopes into a single V-shape "
+            "value. Higher positive values indicate a stronger V-shape pattern."
+        )
+        st.markdown(
+            "**For an overall measure of Eyebrow V-shape, please use** "
+            "`Eyebrow_V`**.**"
+        )
+        st.image("static/Vshape.png", caption="Eyebrow V-shape", use_container_width=True)
+
+        st.markdown(
+            "<div style=\"height:1.5rem; margin:1.1rem 0 1.3rem 0; "
+            "border-top:2px solid #DAE1E5;\"></div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown('<div id="canthal-tilt"></div>', unsafe_allow_html=True)
+        st.subheader("Canthal tilt")
+        st.markdown("*(Witkower & Khanna, in prep.)*")
+        st.markdown(
+            "Canthal tilt—the angle of a virtual line connecting the inner "
+            "(medial) and outer (lateral) corners of each eye relative to a "
+            "horizontal line—indicates whether the outer corner of the eye is "
+            "higher or lower than the inner corner. A positive canthal tilt "
+            "indicates that the outer corner is higher than the inner corner, "
+            "whereas a negative canthal tilt indicates that the inner corner is "
+            "higher than the outer corner. FaceMeasure calculates canthal tilt "
+            "in degrees for each eye separately, as well as the average canthal "
+            "tilt and the difference in canthal tilt between the two eyes. "
+            "**For an overall measure of canthal tilt, we recommend using the "
+            "average of both eyes (`CanthalTilt_Mean`).**"
+        )
+        st.image("static/CanthalTilt.png", caption="Canthal tilt", use_container_width=True)
 
 
 dialog_decorator = getattr(st, "dialog", None) or getattr(st, "experimental_dialog", None)
@@ -843,7 +888,7 @@ if dialog_decorator:
     def show_output_explainer():
         render_output_explainer()
 
-    @output_dialog("Additional facial metrics")
+    @output_dialog("Advanced facial metrics")
     def show_metrics_explainer():
         render_metrics_explainer()
 else:
@@ -926,7 +971,7 @@ with explainer_col1:
     if st.button("Landmark explanation", type="secondary", width='stretch'):
         show_output_explainer()
 with explainer_col2:
-    if st.button("Additional facial metrics", type="secondary", width='stretch'):
+    if st.button("Advanced facial metrics", type="secondary", width='stretch'):
         show_metrics_explainer()
 
 if not dialog_decorator and st.session_state.get("show_output_explainer_fallback"):
